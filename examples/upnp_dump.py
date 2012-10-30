@@ -4,8 +4,6 @@
 #
 
 import sys
-import optparse
-import logging
 
 # Relative import of upnpclient
 try:
@@ -16,21 +14,17 @@ except ImportError, e:
     sys.stderr.write('Error importing upnpclient library: %s\n' % (e))
     sys.exit(-1)
 
-# Parse options
-parser = optparse.OptionParser()
-parser.add_option("-d", "--debug", dest="debug", action="store_true", default=False, help="Show debug information")
-(options, args) = parser.parse_args()
+# Create an SSDP (Simple Service Discovery Protocol) client. This is the first
+# step in discovering UPnP devices on the network.
+ssdp = upnpclient.SSDP(wait_time=5)
 
-# Enable debugging logging
-if options.debug:
-    logging.root.setLevel(logging.INFO)
-    log = logging.basicConfig(level=logging.INFO,
-        format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
-
-# Discover services and dump
-ssdp = upnpclient.SSDP()
+# Do a device discovery on the network by broadcasting an HTTPU M-SEARCH using
+# UDP over the network. We wait for devices to reply for 5 seconds.
 servers = ssdp.discover()
 
+# The discovery phase has provided us with a list of upnpclient.Server class
+# instances. We'll walk through them, print some information on them and list
+# their services, actions and the arguments for those actions.
 for server in servers:
     print "%s: %s (%s)" % (server.friendly_name, server.model_description, server.location)
     for service in server.services:
