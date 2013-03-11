@@ -3,16 +3,7 @@
 # Dump all the methods on every UPnP server found.
 #
 
-import sys
-
-# Relative import of upnpclient
-try:
-    sys.path.insert(0, '../src/')
-    import upnpclient
-    sys.path.pop(0)
-except ImportError, e:
-    sys.stderr.write('Error importing upnpclient library: %s\n' % (e))
-    sys.exit(-1)
+import upnpclient
 
 # Create an SSDP (Simple Service Discovery Protocol) client. This is the first
 # step in discovering UPnP devices on the network.
@@ -25,16 +16,20 @@ servers = ssdp.discover()
 # The discovery phase has provided us with a list of upnpclient.Server class
 # instances. We'll walk through them, print some information on them and list
 # their services, actions and the arguments for those actions.
-for server in servers:
-    print "%s: %s (%s)" % (server.friendly_name, server.model_description, server.location)
-    for service in server.services:
-        print "   %s" % (service.service_type)
-        for action in service.actions:
-            print "      %s" % (action.name)
-            for arg_name, arg_def in action.argsdef_in:
-                valid = ', '.join(arg_def['allowed_values']) or '*'
-                print "          in: %s (%s): %s" % (arg_name, arg_def['datatype'], valid)
-            for arg_name, arg_def in action.argsdef_out:
-                valid = ', '.join(arg_def['allowed_values']) or '*'
-                print "         out: %s (%s): %s" % (arg_name, arg_def['datatype'], valid)
+if not servers:
+    print "No UPnP servers discovered on your network. Maybe try turning on"
+    print "UPnP on one of your devices?"
+else:
+    for server in servers:
+        print "%s: %s (%s)" % (server.friendly_name, server.model_description, server.location)
+        for service in server.services:
+            print "   %s" % (service.service_type)
+            for action in service.actions:
+                print "      %s" % (action.name)
+                for arg_name, arg_def in action.argsdef_in:
+                    valid = ', '.join(arg_def['allowed_values']) or '*'
+                    print "          in: %s (%s): %s" % (arg_name, arg_def['datatype'], valid)
+                for arg_name, arg_def in action.argsdef_out:
+                    valid = ', '.join(arg_def['allowed_values']) or '*'
+                    print "         out: %s (%s): %s" % (arg_name, arg_def['datatype'], valid)
 

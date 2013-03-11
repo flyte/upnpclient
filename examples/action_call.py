@@ -3,16 +3,7 @@
 # Show how to actually perform UPnP calls.
 #
 
-import sys
-
-# Relative import of upnpclient
-try:
-    sys.path.insert(0, '../src/')
-    import upnpclient
-    sys.path.pop(0)
-except ImportError, e:
-    sys.stderr.write('Error importing upnpclient library: %s\n' % (e))
-    sys.exit(-1)
+import upnpclient
 
 # Get a upnpclient.Server class instance for the UPnP service at our local
 # router.
