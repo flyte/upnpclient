@@ -1,7 +1,8 @@
 
 # Todo:
-#  - Check indoc examples.
-#  - The control point should wait at least the amount of time specified in the MX header for responses to arrive from devices.
+#  - Allow persistance of discovered servers.
+#  - The control point should wait at least the amount of time specified in the
+#    MX header for responses to arrive from devices.
 #  - Date/datetime
 #  - Store all properties
 #  - SSDP.discover(st): Allow to discover only certain service types
