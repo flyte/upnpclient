@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/flyte/pyupnpclient.svg?branch=develop)](https://travis-ci.org/flyte/pyupnpclient)
+
 pyUPNPclient
 ============
 
