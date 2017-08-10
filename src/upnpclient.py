@@ -138,10 +138,15 @@ for server in servers:
 import logging
 import socket
 import struct
-import urllib2
 import xml.dom.minidom
 import sys
-from urlparse import urljoin
+
+import requests
+from requests.compat import urljoin, basestring
+
+
+HTTP_TIMEOUT = 10
+
 
 def _XMLGetNodeText(node):
     """
@@ -176,7 +181,7 @@ def _getLogger(name):
 
 class UPNPError(Exception):
     """
-    Exceptio class for UPnP errors.
+    Exception class for UPnP errors.
     """
     pass
 
@@ -261,7 +266,7 @@ class SSDP(object):
             try:
                 upnp_server = Server(ssdp_reply['location'], ssdp_reply['server'])
                 servers.append(upnp_server)
-            except Exception, e:
+            except Exception as e:
                 self._log.error('Error \'%s\' for %s' % (e, ssdp_reply['server']))
                 pass
         return(servers)
@@ -301,8 +306,8 @@ class Server(object):
         self.services = []
         self._log = _getLogger('SERVER')
 
-        response = urllib2.urlopen(self.location)
-        self._root_xml = xml.dom.minidom.parseString(response.read())
+        resp = requests.get(self.location, timeout=HTTP_TIMEOUT)
+        self._root_xml = xml.dom.minidom.parseString(resp.text)
         self.device_type = _XMLFindNodeText(self._root_xml, 'deviceType')
         self.friendly_name = _XMLFindNodeText(self._root_xml, 'friendlyName')
         self.manufacturer = _XMLFindNodeText(self._root_xml, 'manufacturer')
@@ -310,7 +315,6 @@ class Server(object):
         self.model_name = _XMLFindNodeText(self._root_xml, 'modelName')
         self.model_number = _XMLFindNodeText(self._root_xml, 'modelNumber')
         self.serial_number = _XMLFindNodeText(self._root_xml, 'serialNumber')
-        response.close()
 
         self._url_base = _XMLFindNodeText(self._root_xml, 'URLBase')
         if self._url_base == '':
@@ -332,7 +336,8 @@ class Server(object):
             scpd_url = _XMLGetNodeText(node.getElementsByTagName('SCPDURL')[0])
             event_sub_url = _XMLGetNodeText(node.getElementsByTagName('eventSubURL')[0])
             self._log.info('%s: Service "%s" at %s' % (self.server_name, service_type, scpd_url))
-            self.services.append(Service(self._url_base, service_type, service_id, control_url, scpd_url, event_sub_url))
+            self.services.append(Service(
+                self._url_base, service_type, service_id, control_url, scpd_url, event_sub_url))
 
     def find_action(self, action_name):
         """Find an action by name.
@@ -392,10 +397,10 @@ class Service(object):
         self._log.debug('%s eventSubURL: %s' % (self.service_id, self._event_sub_url))
 
         # FIXME: http://192.168.1.2:1780/InternetGatewayDevice.xml/x_layer3forwarding.xml
-        self._log.info('Reading %s' % (urljoin(self._url_base, self._scpd_url)))
-        response = urllib2.urlopen(urljoin(self._url_base, self._scpd_url))
-        self.scpd_xml = xml.dom.minidom.parseString(response.read())
-        response.close()
+        url = urljoin(self._url_base, self._scpd_url)
+        self._log.info('Reading %s', url)
+        resp = requests.get(url, timeout=HTTP_TIMEOUT)
+        self.scpd_xml = xml.dom.minidom.parseString(resp.text)
 
         self._readStateVariables()
         self._readActions()
@@ -612,24 +617,22 @@ class SOAP(object):
             'SOAPAction': '"%s#%s"' % (self.service_type, action_name),
             'Host': self._host,
             'Content-Type': 'text/xml',
-            'Content-Length': len(body),
+            'Content-Length': str(len(body)),
         }
 
         # Uncomment this for debugging.
         # urllib2.install_opener(urllib2.build_opener(urllib2.HTTPHandler(debuglevel=1)))
-        request = urllib2.Request(self.url, body, headers)
         try:
-            response = urllib2.urlopen(request)
-        except urllib2.HTTPError, e:
-            soap_error_xml = xml.dom.minidom.parseString(e.read())
+            resp = requests.post(self.url, body, headers=headers, timeout=HTTP_TIMEOUT)
+        except requests.exceptions.HTTPError as e:
+            soap_error_xml = xml.dom.minidom.parseString(str(e))
             raise SOAPError(
                 int(_XMLGetNodeText(soap_error_xml.getElementsByTagName('errorCode')[0])),
                 _XMLGetNodeText(soap_error_xml.getElementsByTagName('errorDescription')[0]),
             )
 
-        raw_xml = response.read()
+        raw_xml = resp.text
         contents = xml.dom.minidom.parseString(raw_xml)
-        response.close()
 
         params_out = {}
         for node in contents.getElementsByTagName('*'):
@@ -638,7 +641,7 @@ class SOAP(object):
                     if param_out_node.nodeType == param_out_node.ELEMENT_NODE:
                         params_out[param_out_node.localName] = _XMLGetNodeText(param_out_node)
 
-        return(params_out)
+        return params_out
 
 if __name__ == '__main__':
     import unittest
@@ -669,7 +672,7 @@ if __name__ == '__main__':
             self.assertTrue(server.serial_number == '0612BH95K')
 
         def test_server_nonexists(self):
-            self.assertRaises(urllib2.HTTPError, Server, 'http://192.168.1.254:80/upnp/DOESNOTEXIST.xml')
+            self.assertRaises(requests.exceptions.HTTPError, Server, 'http://192.168.1.254:80/upnp/DOESNOTEXIST.xml')
 
         def test_services(self):
             service_ids = [service.service_id for service in self.server.services]
@@ -738,7 +741,8 @@ if __name__ == '__main__':
         def test_callaction_param_mashall_out(self):
             action = self.server.find_action('GetGenericPortMappingEntry')
             response = action.call(NewPortMappingIndex=0)
-            self.assertTrue(isinstance(response['NewInternalClient'], str) or isinstance(response['NewInternalClient'], unicode))
+
+            self.assertTrue(isinstance(response['NewInternalClient'], basestring))
             self.assertTrue(isinstance(response['NewExternalPort'], int))
             self.assertTrue(isinstance(response['NewEnabled'], bool))
 
@@ -746,7 +750,7 @@ if __name__ == '__main__':
             service = self.server.services[0]
             try:
                 service.call('NoSuchFunction')
-            except SOAPError, e:
+            except SOAPError as e:
                 self.assertTrue(e.args[0] == 401)
                 self.assertTrue(e.args[1] == 'Invalid action')
 
@@ -754,7 +758,7 @@ if __name__ == '__main__':
             action = self.server.find_action('ForceTermination')
             try:
                 action.call()
-            except SOAPError, e:
+            except SOAPError as e:
                 self.assertTrue(e.args[0] == 401)
                 self.assertTrue(e.args[1] == 'Invalid action')
 
