@@ -141,8 +141,9 @@ import struct
 import xml.dom.minidom
 import sys
 
+import six
 import requests
-from requests.compat import urljoin, basestring
+from requests.compat import urljoin
 
 
 HTTP_TIMEOUT = 10
@@ -156,7 +157,7 @@ def _XMLGetNodeText(node):
     for childNode in node.childNodes:
         if childNode.nodeType == node.TEXT_NODE:
             text.append(childNode.data)
-    return(''.join(text))
+    return ''.join(text)
 
 def _XMLFindNodeText(node, tag_name):
     """
@@ -165,9 +166,9 @@ def _XMLFindNodeText(node, tag_name):
     """
     target_nodes = node.getElementsByTagName(tag_name)
     try:
-        return(_XMLGetNodeText(target_nodes[0]))
+        return _XMLGetNodeText(target_nodes[0])
     except IndexError:
-        return('')
+        return ''
 
 def _getLogger(name):
     """
@@ -177,7 +178,7 @@ def _getLogger(name):
     logger = logging.getLogger(name)
     if not logging.root.handlers:
         logger.disabled = 1
-    return(logger)
+    return logger
 
 class UPNPError(Exception):
     """
@@ -215,21 +216,24 @@ class SSDP(object):
         """
         Discover UPnP devices on the network via UDP multicast. Returns a list
         of dictionaries, each of which contains the HTTPMU reply headers.
+
+        # FIXME: Do this on all interfaces instead of letting the OS choose.
         """
-        msg = \
-            'M-SEARCH * HTTP/1.1\r\n' \
-            'HOST:239.255.255.250:1900\r\n' \
-            'MAN:"ssdp:discover"\r\n' \
-            'MX:2\r\n' \
-            'ST:upnp:rootdevice\r\n' \
-            '\r\n'
+        msg = '\r\n'.join([
+            'M-SEARCH * HTTP/1.1',
+            'HOST:239.255.255.250:1900',
+            'MAN:"ssdp:discover"',
+            'MX:2',
+            'ST:upnp:rootdevice',
+            ''
+        ])
 
         # Send discovery broadcast message
         self._log.debug('M-SEARCH broadcast discovery')
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.settimeout(self.wait_time)
-        s.sendto(msg, ('239.255.255.250', 1900) )
+        s.sendto(msg.encode('utf8'), ('239.255.255.250', 1900) )
 
         # Wait for replies
         ssdp_replies = []
@@ -253,7 +257,7 @@ class SSDP(object):
             pass
 
         s.close()
-        return(ssdp_replies)
+        return ssdp_replies
 
     def discover(self):
         """
@@ -269,7 +273,7 @@ class SSDP(object):
             except Exception as e:
                 self._log.error('Error \'%s\' for %s' % (e, ssdp_reply['server']))
                 pass
-        return(servers)
+        return servers
 
 class Server(object):
     """
@@ -307,6 +311,7 @@ class Server(object):
         self._log = _getLogger('SERVER')
 
         resp = requests.get(self.location, timeout=HTTP_TIMEOUT)
+        resp.raise_for_status()
         self._root_xml = xml.dom.minidom.parseString(resp.text)
         self.device_type = _XMLFindNodeText(self._root_xml, 'deviceType')
         self.friendly_name = _XMLFindNodeText(self._root_xml, 'friendlyName')
@@ -349,8 +354,8 @@ class Server(object):
         for service in self.services:
             action = service.find_action(action_name)
             if action:
-                return(action)
-        return(None)
+                return action
+        return None
 
     def call(self, action_name, args={}, **kwargs):
         """Directly call an action
@@ -364,11 +369,11 @@ class Server(object):
 
         action = self.find_action(action_name)
         if action:
-            return(action.call(args))
-        return(None)
+            return action.call(args)
+        return None
 
     def __repr__(self):
-        return("<Server '%s'>" % (self.friendly_name))
+        return "<Server '%s'>" % (self.friendly_name)
 
 class Service(object):
     """
@@ -400,6 +405,7 @@ class Service(object):
         url = urljoin(self._url_base, self._scpd_url)
         self._log.info('Reading %s', url)
         resp = requests.get(url, timeout=HTTP_TIMEOUT)
+        resp.raise_for_status()
         self.scpd_xml = xml.dom.minidom.parseString(resp.text)
 
         self._readStateVariables()
@@ -442,8 +448,8 @@ class Service(object):
 
     def find_action(self, action_name):
         if action_name in self._action_map:
-            return(self._action_map[action_name])
-        return(None)
+            return self._action_map[action_name]
+        return None
 
     # FIXME: Maybe move this?
     @staticmethod
@@ -472,7 +478,7 @@ class Service(object):
             'uri'         : lambda x: x,
             'uuid'        : lambda x: x,
         }
-        return(dt_conv[datatype](value))
+        return dt_conv[datatype](value)
 
     def call(self, action_name, args={}, **kwargs):
         """Directly call an action
@@ -486,11 +492,11 @@ class Service(object):
 
         action = self.find_action(action_name)
         if action:
-            return(action.call(args))
-        return(None)
+            return action.call(args)
+        return None
 
     def __repr__(self):
-        return("<Service service_id='%s'>" % (self.service_id))
+        return "<Service service_id='%s'>" % (self.service_id)
 
 class Action(object):
     def __init__(self, url, service_type, name, argsdef_in={}, argsdef_out={}):
@@ -522,7 +528,7 @@ class Action(object):
         for name, statevar in self.argsdef_out:
             out[name] = Service.marshall_from(statevar['datatype'], soap_response[name])
 
-        return(out)
+        return out
 
     def _validate_arg(self, name, arg, argdef):
         """
@@ -550,7 +556,7 @@ class Action(object):
             elif datatype == 'char':
                 v = arg.decode('utf8'); assert len(v) == 1
             elif datatype == 'string':
-                v = arg.decode('utf8');
+                v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
                 if argdef['allowed_values'] and not v in argdef['allowed_values']:
                     raise UPNPError('Value \'%s\' not allowed for param \'%s\'' % (arg, name))
             elif datatype == 'date':
@@ -579,10 +585,10 @@ class Action(object):
                 v = arg # FIXME
         except Exception:
             raise UPNPError("%s should be of type '%s'" % (name, datatype))
-        return(v)
+        return v
 
     def __repr__(self):
-        return("<Action '%s'>" % (self.name))
+        return "<Action '%s'>" % (self.name)
 
 class SOAPError(Exception):
     pass
@@ -624,6 +630,7 @@ class SOAP(object):
         # urllib2.install_opener(urllib2.build_opener(urllib2.HTTPHandler(debuglevel=1)))
         try:
             resp = requests.post(self.url, body, headers=headers, timeout=HTTP_TIMEOUT)
+            resp.raise_for_status()
         except requests.exceptions.HTTPError as e:
             soap_error_xml = xml.dom.minidom.parseString(str(e))
             raise SOAPError(
@@ -631,135 +638,22 @@ class SOAP(object):
                 _XMLGetNodeText(soap_error_xml.getElementsByTagName('errorDescription')[0]),
             )
 
-        raw_xml = resp.text
+        print(resp.text)
+        raw_xml = resp.text.strip()
         contents = xml.dom.minidom.parseString(raw_xml)
 
         params_out = {}
         for node in contents.getElementsByTagName('*'):
             if node.localName.lower().endswith('response'):
+                print(node)
                 for param_out_node in node.childNodes:
                     if param_out_node.nodeType == param_out_node.ELEMENT_NODE:
+                        print(param_out_node)
                         params_out[param_out_node.localName] = _XMLGetNodeText(param_out_node)
 
+        print(params_out)
         return params_out
 
 if __name__ == '__main__':
-    import unittest
-
-    #logging.root.setLevel(logging.DEBUG)
-    #log = logging.basicConfig(level=logging.DEBUG,
-    #    format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
-
-    class TestUPNP(unittest.TestCase):
-        def setUp(self):
-            self.server = Server('http://192.168.1.254:80/upnp/IGD.xml')
-
-        def test_discover(self):
-            ssdp = SSDP(1)
-            upnp_servers = ssdp.discover()
-
-        def test_server(self):
-            server = Server('http://192.168.1.254:80/upnp/IGD.xml')
-
-        def test_server_props(self):
-            server = Server('http://192.168.1.254:80/upnp/IGD.xml')
-            self.assertTrue(server.device_type == 'urn:schemas-upnp-org:device:InternetGatewayDevice:1')
-            self.assertTrue(server.friendly_name == 'SpeedTouch 5x6 (0612BH95K)')
-            self.assertTrue(server.manufacturer == 'THOMSON')
-            self.assertTrue(server.model_description == 'DSL Internet Gateway Device')
-            self.assertTrue(server.model_name == 'SpeedTouch')
-            self.assertTrue(server.model_number == '546')
-            self.assertTrue(server.serial_number == '0612BH95K')
-
-        def test_server_nonexists(self):
-            self.assertRaises(requests.exceptions.HTTPError, Server, 'http://192.168.1.254:80/upnp/DOESNOTEXIST.xml')
-
-        def test_services(self):
-            service_ids = [service.service_id for service in self.server.services]
-            self.assertTrue('urn:upnp-org:serviceId:layer3f' in service_ids)
-            self.assertTrue('urn:upnp-org:serviceId:wancic' in service_ids)
-            self.assertTrue('urn:upnp-org:serviceId:wandsllc:pvc_Internet' in service_ids)
-            self.assertTrue('urn:upnp-org:serviceId:wanipc:Internet' in service_ids)
-
-        def test_actions(self):
-            actions = []
-            [actions.extend(service.actions) for service in self.server.services]
-            action_names = [action.name for action in actions]
-            self.assertTrue('SetDefaultConnectionService' in action_names)
-            self.assertTrue('GetCommonLinkProperties' in action_names)
-            self.assertTrue('SetDSLLinkType' in action_names)
-            self.assertTrue('SetConnectionType' in action_names)
-
-        def test_findaction_server(self):
-            action = self.server.find_action('GetStatusInfo')
-            self.assertTrue(isinstance(action, Action))
-
-        def test_findaction_server_nonexists(self):
-            action = self.server.find_action('GetNoneExistingAction')
-            self.assertTrue(action == None)
-
-        def test_findaction_service_nonexists(self):
-            service = self.server.services[0]
-            action = self.server.find_action('GetNoneExistingAction')
-            self.assertTrue(action == None)
-
-        def test_callaction_server(self):
-            self.server.call('GetStatusInfo')
-
-        def test_callaction_noparam(self):
-            action = self.server.find_action('GetStatusInfo')
-            response = action.call()
-            self.assertTrue('NewLastConnectionError' in response)
-            self.assertTrue('NewUptime' in response)
-            self.assertTrue('NewConnectionStatus' in response)
-
-        def test_callaction_param(self):
-            action = self.server.find_action('GetGenericPortMappingEntry')
-            response = action.call({'NewPortMappingIndex': 0})
-            self.assertTrue('NewInternalClient' in response)
-
-        def test_callaction_param_kw(self):
-            action = self.server.find_action('GetGenericPortMappingEntry')
-            response = action.call(NewPortMappingIndex=0)
-            self.assertTrue('NewInternalClient' in response)
-
-        def test_callaction_param_missing(self):
-            action = self.server.find_action('GetGenericPortMappingEntry')
-            self.assertRaises(UPNPError, action.call)
-
-        def test_callaction_param_invalid_ui2(self):
-            action = self.server.find_action('GetGenericPortMappingEntry')
-            self.assertRaises(UPNPError, action.call, {'NewPortMappingIndex': 'ZERO'})
-
-        def test_callaction_param_invalid_allowedval(self):
-            action = self.server.find_action('SetDSLLinkType')
-            name = 'NewLinkType'
-            arg = 'WRONG'
-            statevar = action.argsdef_in[0][1]
-            self.assertRaises(UPNPError, action._validate_arg, name, arg, statevar)
-
-        def test_callaction_param_mashall_out(self):
-            action = self.server.find_action('GetGenericPortMappingEntry')
-            response = action.call(NewPortMappingIndex=0)
-
-            self.assertTrue(isinstance(response['NewInternalClient'], basestring))
-            self.assertTrue(isinstance(response['NewExternalPort'], int))
-            self.assertTrue(isinstance(response['NewEnabled'], bool))
-
-        def test_callaction_nonexisting(self):
-            service = self.server.services[0]
-            try:
-                service.call('NoSuchFunction')
-            except SOAPError as e:
-                self.assertTrue(e.args[0] == 401)
-                self.assertTrue(e.args[1] == 'Invalid action')
-
-        def test_callaction_forbidden(self):
-            action = self.server.find_action('ForceTermination')
-            try:
-                action.call()
-            except SOAPError as e:
-                self.assertTrue(e.args[0] == 401)
-                self.assertTrue(e.args[1] == 'Invalid action')
-
-    unittest.main()
+    # TODO: Make a nice CLI :)
+    pass
