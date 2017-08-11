@@ -133,6 +133,11 @@ for server in servers:
                 valid = ', '.join(arg_def['allowed_values']) or '*'
                 print "         out: %s (%s): %s" % (arg_name, arg_def['datatype'], valid)
 ------------------------------------------------------------------------------
+
+Useful Links:
+
+* https://embeddedinn.wordpress.com/tutorials/upnp-device-architecture/
+* http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf
 """
 from .upnp import Server, Action, Service, UPNPError
 from .soap import SOAP, SOAPError

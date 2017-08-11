@@ -1,10 +1,16 @@
 import xml.dom.minidom
+import re
+from decimal import Decimal
+from datetime import datetime
+from base64 import b64decode
+from uuid import UUID
 
 import six
 import requests
-from requests.compat import urljoin
+from requests.compat import urljoin, urlparse, urlunparse
+from dateutil.parser import parse as parse_date
 
-from .util import _getLogger, _XMLFindNodeText, _XMLGetNodeText
+from .util import _getLogger, _XMLFindNodeText, _XMLGetNodeText, marshall_from
 from .const import HTTP_TIMEOUT
 from .soap import SOAP
 
@@ -195,35 +201,6 @@ class Service(object):
             return self._action_map[action_name]
         return None
 
-    # FIXME: Maybe move this?
-    @staticmethod
-    def marshall_from(datatype, value):
-        dt_conv = {
-            'ui1'         : int,
-            'ui2'         : int,
-            'ui4'         : int,
-            'i1'          : int,
-            'i2'          : int,
-            'i4'          : int,
-            'int'         : int,
-            'r4'          : float,
-            'r8'          : float,
-            'number'      : float,
-            'fixed'       : float,
-            'float'       : float,
-            'char'        : lambda x: x,
-            'string'      : lambda x: x,
-            'date'        : Exception,
-            'dateTime'    : Exception,
-            'dateTime.tz' : Exception,
-            'boolean'     : bool,
-            'bin.base64'  : lambda x: x,
-            'bin.hex'     : lambda x: x,
-            'uri'         : lambda x: x,
-            'uuid'        : lambda x: x,
-        }
-        return dt_conv[datatype](value)
-
     def call(self, action_name, args=None, **kwargs):
         """Directly call an action
         Convenience method for quickly finding and calling an Action on a
@@ -279,7 +256,7 @@ class Action(object):
         # Marshall the response to python data types
         out = {}
         for name, statevar in self.argsdef_out:
-            out[name] = Service.marshall_from(statevar['datatype'], soap_response[name])
+            out[name] = marshall_from(statevar['datatype'], soap_response[name])
 
         return out
 
@@ -291,37 +268,57 @@ class Action(object):
         datatype = argdef['datatype']
         try:
             if datatype == 'ui1':
-                v = int(arg); assert v >= 0 and v <= 255
+                v = int(arg)
+                assert v >= 0 and v <= 255
             elif datatype == 'ui2':
-                v = int(arg); assert v >= 0 and v <= 65535
-            elif datatype == 'ui4' :
-                v = int(arg); assert v >= 0 and v <= 4294967295
+                v = int(arg)
+                assert v >= 0 and v <= 65535
+            elif datatype == 'ui4':
+                v = int(arg)
+                assert v >= 0 and v <= 4294967295
             if datatype == 'i1':
-                v = int(arg); assert v >= -128 and v <= 127
+                v = int(arg)
+                assert v >= -128 and v <= 127
             elif datatype == 'i2':
-                v = int(arg); assert v >= -32768 and v <= 32767
-            elif datatype in ['i4', 'int']:
-                v = int(arg);
+                v = int(arg)
+                assert v >= -32768 and v <= 32767
+            elif datatype == 'i4':
+                v = int(arg)
+                assert v >= -2147483648 and v <= 2147483647
+            elif datatype == 'i4':
+                v = int(arg)
             elif datatype == 'r4':
-                v = float(arg); assert v >= 1.17549435E-38 and v <= 3.40282347E+38
-            elif datatype in ['r8', 'number', 'float', 'fixed.14.4'] :
-                v = float(arg); # r8 is too big for python, so we don't check anything
+                v = Decimal(arg)
+                assert v >= Decimal('3.40282347E+38') and v <= Decimal('1.17549435E-38')
+            elif datatype in ['r8', 'number', 'float', 'fixed.14.4']:
+                v = Decimal(arg)
+                if v < 0:
+                    assert v >= Decimal('-1.79769313486232E308') and v <= Decimal('4.94065645841247E-324')
+                else:
+                    assert v >= Decimal('4.94065645841247E-324') and v <= Decimal('1.79769313486232E308')
             elif datatype == 'char':
-                v = arg.decode('utf8'); assert len(v) == 1
+                v = arg.decode('utf8') if six.PY2 or isinstance(arg, bytes) else arg
+                assert len(v) == 1
             elif datatype == 'string':
                 v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
                 if argdef['allowed_values'] and not v in argdef['allowed_values']:
                     raise UPNPError('Value \'%s\' not allowed for param \'%s\'' % (arg, name))
             elif datatype == 'date':
-                v = arg # FIXME
-            elif datatype == 'dateTime':
-                v = arg # FIXME
-            elif datatype == 'dateTime.tz':
-                v = arg # FIXME
-            elif datatype == 'time':
-                v = arg # FIXME
-            elif datatype == 'time.tz':
-                v = arg # FIXME
+                v = parse_date(arg)
+                assert not any((v.hour, v.minute, v.second))
+            elif datatype in ('dateTime', 'dateTime.tz'):
+                v = parse_date(arg)
+            elif datatype in ('time', 'time.tx'):
+                v = parse_date(arg)
+                now = datetime.utcnow()
+                if v.tzinfo is not None:
+                    now += v.utcoffset()
+                # Tiny race condition!
+                assert all((
+                    v.day == now.day,
+                    v.month == now.month,
+                    v.year == now.year
+                ))
             elif datatype == 'boolean':
                 if arg.lower() in ['true', 'yes']:
                     v = 1
@@ -329,13 +326,18 @@ class Action(object):
                     v = 0
                 v = [0, 1][bool(arg)]
             elif datatype == 'bin.base64':
-                v = arg # FIXME
+                v = b64decode(arg)
             elif datatype == 'bin.hex':
-                v = arg # FIXME
+                v = bytearray.fromhex(arg)
             elif datatype == 'uri':
-                v = arg # FIXME
+                v = urlunparse(urlparse(arg))
             elif datatype == 'uuid':
-                v = arg # FIXME
+                assert re.match(
+                    r'^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$',
+                    arg,
+                    re.I
+                )
+                v = UUID(arg)
         except Exception:
             raise UPNPError("%s should be of type '%s'" % (name, datatype))
         return v

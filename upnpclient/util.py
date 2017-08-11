@@ -1,4 +1,9 @@
 import logging
+from decimal import Decimal
+from uuid import UUID
+from base64 import b64decode
+
+from dateutil.parser import parser as parse_date
 
 
 def _getLogger(name):
@@ -32,3 +37,33 @@ def _XMLFindNodeText(node, tag_name):
         return _XMLGetNodeText(target_nodes[0])
     except IndexError:
         return ''
+
+
+def marshall_from(datatype, value):
+    dt_conv = {
+        'ui1'         : int,
+        'ui2'         : int,
+        'ui4'         : int,
+        'i1'          : int,
+        'i2'          : int,
+        'i4'          : int,
+        'int'         : int,
+        'r4'          : Decimal,
+        'r8'          : Decimal,
+        'number'      : Decimal,
+        'fixed.14.4'  : Decimal,
+        'float'       : Decimal,
+        'char'        : lambda x: x,
+        'string'      : lambda x: x,
+        'date'        : parse_date,
+        'dateTime'    : parse_date,
+        'dateTime.tz' : parse_date,
+        'time'        : parse_date,
+        'time.tz'     : parse_date,
+        'boolean'     : bool,
+        'bin.base64'  : b64decode,
+        'bin.hex'     : bytearray.fromhex,
+        'uri'         : lambda x: x,
+        'uuid'        : UUID,
+    }
+    return dt_conv[datatype](value)
