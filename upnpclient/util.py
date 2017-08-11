@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 from base64 import b64decode
 
-from dateutil.parser import parser as parse_date
+from dateutil.parser import parse as parse_date
 
 
 def _getLogger(name):
@@ -55,11 +55,11 @@ def marshall_from(datatype, value):
         'float'       : Decimal,
         'char'        : lambda x: x,
         'string'      : lambda x: x,
-        'date'        : parse_date,
+        'date'        : lambda x: parse_date(x).date(),
         'dateTime'    : parse_date,
         'dateTime.tz' : parse_date,
-        'time'        : parse_date,
-        'time.tz'     : parse_date,
+        'time'        : lambda x: parse_date(x).time(),
+        'time.tz'     : lambda x: parse_date(x).time(),
         'boolean'     : bool,
         'bin.base64'  : b64decode,
         'bin.hex'     : bytearray.fromhex,

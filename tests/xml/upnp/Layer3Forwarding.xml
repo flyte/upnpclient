@@ -1,86 +1,76 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <scpd xmlns="urn:schemas-upnp-org:service-1-0">
-<specVersion>
-<major>1</major>
-<minor>0</minor>
-</specVersion>
-<actionList>
-
-<action>
-    <name>GetGenericPortMappingEntry</name>
-    <argumentList>
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <actionList>
+    <action>
+      <name>GetGenericPortMappingEntry</name>
+      <argumentList>
         <argument>
-            <name>NewPortMappingIndex</name>
-            <direction>in</direction>
-            <relatedStateVariable>PortMappingIndex</relatedStateVariable>
+          <name>NewPortMappingIndex</name>
+          <direction>in</direction>
+          <relatedStateVariable>PortMappingIndex</relatedStateVariable>
         </argument>
         <argument>
-            <name>NewInternalClient</name>
-            <direction>out</direction>
-            <relatedStateVariable>InternalClient</relatedStateVariable>
+          <name>NewInternalClient</name>
+          <direction>out</direction>
+          <relatedStateVariable>InternalClient</relatedStateVariable>
         </argument>
         <argument>
-            <name>NewExternalPort</name>
-            <direction>out</direction>
-            <relatedStateVariable>ExternalPort</relatedStateVariable>
+          <name>NewExternalPort</name>
+          <direction>out</direction>
+          <relatedStateVariable>ExternalPort</relatedStateVariable>
         </argument>
         <argument>
-            <name>NewEnabled</name>
-            <direction>out</direction>
-            <relatedStateVariable>Enabled</relatedStateVariable>
+          <name>NewEnabled</name>
+          <direction>out</direction>
+          <relatedStateVariable>Enabled</relatedStateVariable>
         </argument>
-    </argumentList>
-</action>
-
-<action>
-<name>SetDefaultConnectionService</name>
-<argumentList>
-<argument>
-<name>NewDefaultConnectionService</name>
-<direction>in</direction>
-<relatedStateVariable>DefaultConnectionService</relatedStateVariable>
-</argument>
-</argumentList>
-</action>
-<action>
-<name>GetDefaultConnectionService</name>
-<argumentList>
-<argument>
-<name>NewDefaultConnectionService</name>
-<direction>out</direction>
-<relatedStateVariable>DefaultConnectionService</relatedStateVariable>
-</argument>
-</argumentList>
-</action>
-</actionList>
-<serviceStateTable>
-
-<stateVariable sendEvents="yes">
-<name>DefaultConnectionService</name>
-<dataType>string</dataType>
-</stateVariable>
-
-<stateVariable sendEvents="yes">
-<name>PortMappingIndex</name>
-<dataType>ui4</dataType>
-</stateVariable>
-
-<stateVariable sendEvents="yes">
-<name>InternalClient</name>
-<dataType>string</dataType>
-</stateVariable>
-
-<stateVariable sendEvents="yes">
-<name>ExternalPort</name>
-<dataType>ui4</dataType>
-</stateVariable>
-
-<stateVariable sendEvents="yes">
-<name>Enabled</name>
-<dataType>boolean</dataType>
-</stateVariable>
-
-</serviceStateTable>
+      </argumentList>
+    </action>
+    <action>
+      <name>SetDefaultConnectionService</name>
+      <argumentList>
+        <argument>
+          <name>NewDefaultConnectionService</name>
+          <direction>in</direction>
+          <relatedStateVariable>DefaultConnectionService</relatedStateVariable>
+        </argument>
+      </argumentList>
+    </action>
+    <action>
+      <name>GetDefaultConnectionService</name>
+      <argumentList>
+        <argument>
+          <name>NewDefaultConnectionService</name>
+          <direction>out</direction>
+          <relatedStateVariable>DefaultConnectionService</relatedStateVariable>
+        </argument>
+      </argumentList>
+    </action>
+  </actionList>
+  <serviceStateTable>
+    <stateVariable sendEvents="yes">
+      <name>DefaultConnectionService</name>
+      <dataType>string</dataType>
+    </stateVariable>
+    <stateVariable sendEvents="yes">
+      <name>PortMappingIndex</name>
+      <dataType>ui4</dataType>
+    </stateVariable>
+    <stateVariable sendEvents="yes">
+      <name>InternalClient</name>
+      <dataType>string</dataType>
+    </stateVariable>
+    <stateVariable sendEvents="yes">
+      <name>ExternalPort</name>
+      <dataType>ui4</dataType>
+    </stateVariable>
+    <stateVariable sendEvents="yes">
+      <name>Enabled</name>
+      <dataType>boolean</dataType>
+    </stateVariable>
+  </serviceStateTable>
 </scpd>
-
-

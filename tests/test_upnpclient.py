@@ -2,6 +2,7 @@ import unittest
 import threading
 import os.path as path
 import os
+import datetime
 
 import mock
 
@@ -195,7 +196,7 @@ class TestUPNP(unittest.TestCase):
         name = 'NewPortMappingIndex'
         arg = 'WRONG'
         statevar = action.argsdef_in[0][1]
-        self.assertRaises(upnp.UPNPError, action._validate_arg, name, arg, statevar)
+        self.assertRaises(upnp.UPNPError, action.validate_arg, name, arg, statevar)
 
     @mock.patch('requests.post')
     def test_callaction_param_mashall_out(self, mock_post):
@@ -241,3 +242,81 @@ class TestUPNP(unittest.TestCase):
         except upnp.SOAPError as e:
             self.assertEqual(e.args[0], 401)
             self.assertEqual(e.args[1], 'Invalid action')
+
+    def test_validate_date(self):
+        v = upnp.Action.validate_arg("testarg", "2017-08-11", dict(datatype="date"))
+        self.assertIsInstance(v, datetime.date)
+        tests = dict(
+            year=2017,
+            month=8,
+            day=11
+        )
+        for key, value in tests.items():
+            self.assertEqual(getattr(v, key), value)
+
+    def test_validate_bad_date(self):
+        self.assertRaises(
+            upnp.UPNPError, upnp.Action.validate_arg, "testarg",
+            "2017-13-13", dict(datatype="date")
+        )
+
+    def test_validate_date_with_time(self):
+        self.assertRaises(
+            upnp.UPNPError, upnp.Action.validate_arg, "testarg",
+            "2017-08-11T12:34:56", dict(datatype="date"))
+
+    def test_validate_datetime(self):
+        v = upnp.Action.validate_arg("testarg", "2017-08-11T12:34:56", dict(datatype="dateTime"))
+        self.assertIsInstance(v, datetime.datetime)
+        tests = dict(
+            year=2017,
+            month=8,
+            day=11,
+            hour=12,
+            minute=34,
+            second=56
+        )
+        for key, value in tests.items():
+            self.assertEqual(getattr(v, key), value)
+        self.assertEqual(v.utcoffset(), None)
+
+    def test_validate_datetime_tz(self):
+        v = upnp.Action.validate_arg(
+            "testarg", "2017-08-11T12:34:56+1:00", dict(datatype="dateTime.tz"))
+        self.assertIsInstance(v, datetime.datetime)
+        tests = dict(
+            year=2017,
+            month=8,
+            day=11,
+            hour=12,
+            minute=34,
+            second=56
+        )
+        for key, value in tests.items():
+            self.assertEqual(getattr(v, key), value)
+        self.assertEqual(v.utcoffset(), datetime.timedelta(hours=1))
+
+    def test_validate_time(self):
+        v = upnp.Action.validate_arg(
+            "testarg", "12:34:56", dict(datatype="time"))
+        self.assertIsInstance(v, datetime.time)
+        tests = dict(
+            hour=12,
+            minute=34,
+            second=56
+        )
+        for key, value in tests.items():
+            self.assertEqual(getattr(v, key), value)
+
+    def test_validate_time_tz(self):
+        v = upnp.Action.validate_arg(
+            "testarg", "12:34:56+1:00", dict(datatype="time.tz"))
+        self.assertIsInstance(v, datetime.time)
+        tests = dict(
+            hour=12,
+            minute=34,
+            second=56
+        )
+        for key, value in tests.items():
+            self.assertEqual(getattr(v, key), value)
+        self.assertEqual(v.utcoffset(), datetime.timedelta(hours=1))

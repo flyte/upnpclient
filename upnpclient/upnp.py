@@ -1,7 +1,7 @@
 import xml.dom.minidom
 import re
+import datetime
 from decimal import Decimal
-from datetime import datetime
 from base64 import b64decode
 from uuid import UUID
 
@@ -247,7 +247,7 @@ class Action(object):
         for name, statevar in self.argsdef_in:
             if not name in args:
                 raise UPNPError('Missing required param \'%s\'' % (name))
-            self._validate_arg(name, args[name], statevar)
+            self.validate_arg(name, args[name], statevar)
 
         # Make the actual call
         soap_client = SOAP(self.url, self.service_type)
@@ -260,7 +260,8 @@ class Action(object):
 
         return out
 
-    def _validate_arg(self, name, arg, argdef):
+    @staticmethod
+    def validate_arg(name, arg, argdef):
         """
         Validate and convert an incoming (unicode) string argument according
         the UPnP spec. Raises UPNPError.
@@ -276,7 +277,7 @@ class Action(object):
             elif datatype == 'ui4':
                 v = int(arg)
                 assert v >= 0 and v <= 4294967295
-            if datatype == 'i1':
+            elif datatype == 'i1':
                 v = int(arg)
                 assert v >= -128 and v <= 127
             elif datatype == 'i2':
@@ -286,7 +287,7 @@ class Action(object):
                 v = int(arg)
                 assert v >= -2147483648 and v <= 2147483647
             elif datatype == 'i4':
-                v = int(arg)
+                return int(arg)
             elif datatype == 'r4':
                 v = Decimal(arg)
                 assert v >= Decimal('3.40282347E+38') and v <= Decimal('1.17549435E-38')
@@ -306,11 +307,12 @@ class Action(object):
             elif datatype == 'date':
                 v = parse_date(arg)
                 assert not any((v.hour, v.minute, v.second))
+                return v.date()
             elif datatype in ('dateTime', 'dateTime.tz'):
+                return parse_date(arg)
+            elif datatype in ('time', 'time.tz'):
                 v = parse_date(arg)
-            elif datatype in ('time', 'time.tx'):
-                v = parse_date(arg)
-                now = datetime.utcnow()
+                now = datetime.datetime.utcnow()
                 if v.tzinfo is not None:
                     now += v.utcoffset()
                 # Tiny race condition!
@@ -319,6 +321,7 @@ class Action(object):
                     v.month == now.month,
                     v.year == now.year
                 ))
+                return datetime.time(v.hour, v.minute, v.second, v.microsecond, v.tzinfo)
             elif datatype == 'boolean':
                 if arg.lower() in ['true', 'yes']:
                     v = 1
@@ -326,11 +329,11 @@ class Action(object):
                     v = 0
                 v = [0, 1][bool(arg)]
             elif datatype == 'bin.base64':
-                v = b64decode(arg)
+                return b64decode(arg)
             elif datatype == 'bin.hex':
-                v = bytearray.fromhex(arg)
+                return bytearray.fromhex(arg)
             elif datatype == 'uri':
-                v = urlunparse(urlparse(arg))
+                return urlunparse(urlparse(arg))
             elif datatype == 'uuid':
                 assert re.match(
                     r'^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$',
@@ -338,8 +341,12 @@ class Action(object):
                     re.I
                 )
                 v = UUID(arg)
-        except Exception:
-            raise UPNPError("%s should be of type '%s'" % (name, datatype))
+            else:
+                raise UPNPError("%s datatype of %r is unrecognised." % (name, datatype))
+        except Exception as exc:
+            if isinstance(exc, UPNPError):
+                raise
+            raise UPNPError("%s should be of type '%s'. %s" % (name, datatype, exc))
         return v
 
     def __repr__(self):
