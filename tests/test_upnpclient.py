@@ -21,10 +21,6 @@ except ImportError:
     import SocketServer as sockserver
 
 
-class LessSimpleHTTPRequestHandler(httpserver.SimpleHTTPRequestHandler):
-    pass
-
-
 class TestUPNP(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -35,7 +31,7 @@ class TestUPNP(unittest.TestCase):
         # Have to chdir here because the py2 SimpleHTTPServer doesn't allow us
         # to change its working directory like the py3 one does.
         os.chdir(path.join(path.dirname(path.realpath(__file__)), 'xml'))
-        cls.httpd = sockserver.TCPServer(('127.0.0.1', 0), LessSimpleHTTPRequestHandler)
+        cls.httpd = sockserver.TCPServer(('127.0.0.1', 0), httpserver.SimpleHTTPRequestHandler)
         cls.httpd_thread = threading.Thread(target=cls.httpd.serve_forever)
         cls.httpd_thread.daemon = True
         cls.httpd_thread.start()
