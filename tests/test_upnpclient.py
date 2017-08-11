@@ -308,6 +308,10 @@ class TestUPNP(unittest.TestCase):
         for key, value in tests.items():
             self.assertEqual(getattr(v, key), value)
 
+    def test_validate_time_illegal_tz(self):
+        self.assertRaises(upnp.UPNPError, upnp.Action.validate_arg,
+            "testarg", "12:34:56+1:00", dict(datatype="time"))
+
     def test_validate_time_tz(self):
         v = upnp.Action.validate_arg(
             "testarg", "12:34:56+1:00", dict(datatype="time.tz"))

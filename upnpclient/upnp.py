@@ -321,6 +321,10 @@ class Action(object):
                     v.month == now.month,
                     v.year == now.year
                 ))
+                if datatype == 'time' and v.tzinfo is not None:
+                    raise ValueError(
+                        '%r with datatype %r should not have timezone information.' % (
+                            name, datatype))
                 return datetime.time(v.hour, v.minute, v.second, v.microsecond, v.tzinfo)
             elif datatype == 'boolean':
                 if arg.lower() in ['true', 'yes']:
