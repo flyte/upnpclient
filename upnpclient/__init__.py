@@ -136,6 +136,6 @@ for server in servers:
 """
 from .upnp import Server, Action, Service, UPNPError
 from .soap import SOAP, SOAPError
-from .ssdp import SSDP
+from .ssdp import discover
 
-__all__ = ["Server", "Action", "Service", "UPNPError", "SOAP", "SOAPError", "SSDP"]
+__all__ = ["Server", "Action", "Service", "UPNPError", "SOAP", "SOAPError", "discover"]

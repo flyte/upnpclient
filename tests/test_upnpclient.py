@@ -56,8 +56,7 @@ class TestUPNP(unittest.TestCase):
         self.server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
 
     def test_discover(self):
-        ssdp = upnp.SSDP(1)
-        upnp_servers = ssdp.discover()
+        upnp_servers = upnp.discover(1)
 
     def test_server(self):
         server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
