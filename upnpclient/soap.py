@@ -6,6 +6,7 @@ import requests
 from .util import _getLogger, _XMLGetNodeText
 from .const import HTTP_TIMEOUT
 
+
 class SOAPError(Exception):
     pass
 
@@ -17,9 +18,8 @@ class SOAP(object):
     def __init__(self, url, service_type):
         self.url = url
         self.service_type = service_type
-        self._host = self.url.split('//', 1)[1].split('/', 1)[0] # Get hostname portion of url
+        self._host = self.url.split('//', 1)[1].split('/', 1)[0]  # Get hostname portion of url
         self._log = _getLogger('SOAP')
-
 
     def call(self, action_name, arg_in=None):
         if arg_in is None:
@@ -27,7 +27,8 @@ class SOAP(object):
         arg_values = '\n'.join(['<%s>%s</%s>' % (k, v, k) for k, v in arg_in.items()])
         body = dedent("""
             <?xml version="1.0"?>
-            <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope" SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+            <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope" SOAP-ENV:e\
+ncodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
              <SOAP-ENV:Body>
               <m:{action_name} xmlns:m="{service_type}">
                {arg_values}

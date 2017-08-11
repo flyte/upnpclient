@@ -23,7 +23,6 @@ class UPNPError(Exception):
     pass
 
 
-
 class Server(object):
     """
     UPNP Server represention.
@@ -116,6 +115,7 @@ class Server(object):
 
     def __repr__(self):
         return "<Server '%s'>" % (self.friendly_name)
+
 
 class Service(object):
     """
@@ -237,7 +237,7 @@ class Action(object):
 
         # Validate arguments using the SCPD stateVariable definitions
         for name, statevar in self.argsdef_in:
-            if not name in args:
+            if name not in args:
                 raise UPNPError('Missing required param \'%s\'' % (name))
             self.validate_arg(name, args[name], statevar)
 
@@ -286,15 +286,19 @@ class Action(object):
             elif datatype in ['r8', 'number', 'float', 'fixed.14.4']:
                 v = Decimal(arg)
                 if v < 0:
-                    assert v >= Decimal('-1.79769313486232E308') and v <= Decimal('4.94065645841247E-324')
+                    assert (
+                        v >= Decimal('-1.79769313486232E308') and
+                        v <= Decimal('4.94065645841247E-324'))
                 else:
-                    assert v >= Decimal('4.94065645841247E-324') and v <= Decimal('1.79769313486232E308')
+                    assert (
+                        v >= Decimal('4.94065645841247E-324') and
+                        v <= Decimal('1.79769313486232E308'))
             elif datatype == 'char':
                 v = arg.decode('utf8') if six.PY2 or isinstance(arg, bytes) else arg
                 assert len(v) == 1
             elif datatype == 'string':
                 v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
-                if argdef['allowed_values'] and not v in argdef['allowed_values']:
+                if argdef['allowed_values'] and v not in argdef['allowed_values']:
                     raise UPNPError('Value \'%s\' not allowed for param \'%s\'' % (arg, name))
             elif datatype == 'date':
                 v = parse_date(arg)
