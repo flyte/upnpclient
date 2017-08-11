@@ -101,17 +101,14 @@ class Server(object):
             if action:
                 return action
 
-    def call(self, action_name, args=None, **kwargs):
-        """Directly call an action
+    def __call__(self, action_name, **kwargs):
+        """
         Convenience method for quickly finding and calling an Action on a
         Server.
         """
-        args = {} if args is None else args.copy()
-        # Allow both a dictionary of arguments and normal named arguments
-        args.update(kwargs)
-
         action = self.find_action(action_name)
-        return action.call(args)
+        if action is not None:
+            return action(**kwargs)
 
     def __repr__(self):
         return "<Server '%s'>" % (self.friendly_name)
@@ -193,22 +190,14 @@ class Service(object):
             return self._action_map[action_name]
         return None
 
-    def call(self, action_name, args=None, **kwargs):
-        """Directly call an action
+    def __call__(self, action_name, **kwargs):
+        """
         Convenience method for quickly finding and calling an Action on a
         Service.
         """
-        if args is None:
-            args = {}
-        args = args.copy()
-        if kwargs:
-            # Allow both a dictionary of arguments and normal named arguments
-            args.update(kwargs)
-
         action = self.find_action(action_name)
-        if action:
-            return action.call(args)
-        return None
+        if action is not None:
+            return action(**kwargs)
 
     def __repr__(self):
         return "<Service service_id='%s'>" % (self.service_id)
@@ -227,23 +216,16 @@ class Action(object):
         self.argsdef_out = argsdef_out
         self._log = _getLogger('ACTION')
 
-    def call(self, args=None, **kwargs):
-        if args is None:
-            args = {}
-        args = args.copy()
-        if kwargs:
-            # Allow both a dictionary of arguments and normal named arguments
-            args.update(kwargs)
-
+    def __call__(self, **kwargs):
         # Validate arguments using the SCPD stateVariable definitions
         for name, statevar in self.argsdef_in:
-            if name not in args:
+            if name not in kwargs:
                 raise UPNPError('Missing required param \'%s\'' % (name))
-            self.validate_arg(name, args[name], statevar)
+            self.validate_arg(name, kwargs[name], statevar)
 
         # Make the actual call
         soap_client = SOAP(self.url, self.service_type)
-        soap_response = soap_client.call(self.name, args)
+        soap_response = soap_client.call(self.name, kwargs)
 
         # Marshall the response to python data types
         out = {}

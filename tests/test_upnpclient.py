@@ -125,7 +125,7 @@ class TestUPNP(unittest.TestCase):
         </s:Envelope>
         """
         mock_post.return_value = ret
-        self.server.call('GetSubnetMask')
+        self.server('GetSubnetMask')
 
     @mock.patch('requests.post')
     def test_callaction_noparam(self, mock_post):
@@ -143,7 +143,7 @@ class TestUPNP(unittest.TestCase):
         """
         mock_post.return_value = ret
         action = self.server.find_action('GetAddressRange')
-        response = action.call()
+        response = action()
         self.assertIn('NewMinAddress', response)
         self.assertIn('NewMaxAddress', response)
 
@@ -162,7 +162,7 @@ class TestUPNP(unittest.TestCase):
         """
         mock_post.return_value = ret
         action = self.server.find_action('SetDomainName')
-        response = action.call({'NewDomainName': 'github.com'})
+        response = action(NewDomainName='github.com')
         self.assertIn('NewDomainName', response)
 
     @mock.patch('requests.post')
@@ -182,18 +182,18 @@ class TestUPNP(unittest.TestCase):
         """
         mock_post.return_value = ret
         action = self.server.find_action('GetGenericPortMappingEntry')
-        response = action.call(NewPortMappingIndex=0)
+        response = action(NewPortMappingIndex=0)
         self.assertIn('NewInternalClient', response)
         self.assertIn('NewExternalPort', response)
         self.assertIn('NewEnabled', response)
 
     def test_callaction_param_missing(self):
         action = self.server.find_action('GetGenericPortMappingEntry')
-        self.assertRaises(upnp.UPNPError, action.call)
+        self.assertRaises(upnp.UPNPError, action)
 
     def test_callaction_param_invalid_ui2(self):
         action = self.server.find_action('GetGenericPortMappingEntry')
-        self.assertRaises(upnp.UPNPError, action.call, {'NewPortMappingIndex': 'ZERO'})
+        self.assertRaises(upnp.UPNPError, action, NewPortMappingIndex='ZERO')
 
     def test_callaction_param_invalid_allowedval(self):
         action = self.server.find_action('GetGenericPortMappingEntry')
@@ -219,7 +219,7 @@ class TestUPNP(unittest.TestCase):
         """
         mock_post.return_value = ret
         action = self.server.find_action('GetGenericPortMappingEntry')
-        response = action.call(NewPortMappingIndex=0)
+        response = action(NewPortMappingIndex=0)
 
         self.assertIsInstance(response['NewInternalClient'], basestring)
         self.assertIsInstance(response['NewExternalPort'], int)
@@ -228,7 +228,7 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_nonexisting(self):
         service = self.server.services[0]
         try:
-            service.call('NoSuchFunction')
+            service('NoSuchFunction')
         except upnp.SOAPError as e:
             self.assertEqual(e.args[0], 401)
             self.assertEqual(e.args[1], 'Invalid action')
@@ -242,7 +242,7 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_forbidden(self, mock_post):
         action = self.server.find_action('SetDefaultConnectionService')
         try:
-            action.call({'NewDefaultConnectionService': 'foo'})
+            action(NewDefaultConnectionService='foo')
         except upnp.SOAPError as e:
             self.assertEqual(e.args[0], 401)
             self.assertEqual(e.args[1], 'Invalid action')
