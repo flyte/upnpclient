@@ -3,6 +3,9 @@ import threading
 import os.path as path
 import os
 import datetime
+import base64
+import binascii
+from uuid import UUID
 
 import mock
 
@@ -324,3 +327,49 @@ class TestUPNP(unittest.TestCase):
         for key, value in tests.items():
             self.assertEqual(getattr(v, key), value)
         self.assertEqual(v.utcoffset(), datetime.timedelta(hours=1))
+
+    def test_validate_bool(self):
+        valid_true = ("1", "true", "TRUE", "True", "yes", "YES", "Yes")
+        valid_false = ("0", "false", "FALSE", "False", "no", "NO", "No")
+        tests = (
+            list(zip(valid_true, [True]*len(valid_true))) +
+            list(zip(valid_false, [False]*len(valid_false)))
+        )
+        for item, test in tests:
+            v = upnp.Action.validate_arg(
+                "testarg", item, dict(datatype="boolean"))
+            self.assertEqual(v, test)
+
+    def test_validate_bad_bool(self):
+        self.assertRaises(upnp.UPNPError, upnp.Action.validate_arg,
+            "testarg", "2", dict(datatype="boolean"))
+
+    def test_validate_base64(self):
+        bstring = "Hello, world!".encode("utf8")
+        v = upnp.Action.validate_arg(
+            "testarg", base64.b64encode(bstring), dict(datatype="bin.base64"))
+        self.assertEqual(v, bstring)
+
+    def test_validate_hex(self):
+        bstring = "Hello, world!".encode("ascii")
+        v = upnp.Action.validate_arg(
+            "testarg", binascii.hexlify(bstring), dict(datatype="bin.hex"))
+        self.assertEqual(v, bstring)
+
+    def test_validate_uri(self):
+        uri = "https://media.giphy.com/media/22kxQ12cxyEww/giphy.gif?something=variable"
+        v = upnp.Action.validate_arg(
+            "testarg", uri, dict(datatype="uri"))
+        self.assertEqual(v, uri)
+
+    def test_validate_uuid(self):
+        uuid = "bec6d681-a6af-4e7d-8b31-bcb78018c814"
+        v = upnp.Action.validate_arg(
+            "testarg", uuid, dict(datatype="uuid"))
+        self.assertEqual(v, UUID(uuid))
+
+    def test_validate_bad_uuid(self):
+        uuid = "bec-6d681a6af-4e7d-8b31-bcb78018c814"
+        self.assertRaises(
+            upnp.UPNPError, upnp.Action.validate_arg,
+            "testarg", uuid, dict(datatype="uuid"))

@@ -4,6 +4,7 @@ import datetime
 from decimal import Decimal
 from base64 import b64decode
 from uuid import UUID
+from binascii import unhexlify
 
 import six
 import requests
@@ -327,15 +328,15 @@ class Action(object):
                             name, datatype))
                 return datetime.time(v.hour, v.minute, v.second, v.microsecond, v.tzinfo)
             elif datatype == 'boolean':
-                if arg.lower() in ['true', 'yes']:
-                    v = 1
-                elif arg.lower() in ['false', 'no']:
-                    v = 0
-                v = [0, 1][bool(arg)]
+                if arg.lower() in ['true', 'yes', '1']:
+                    return True
+                elif arg.lower() in ['false', 'no', '0']:
+                    return False
+                raise ValueError('%r does not contain a valid boolean value: %r' % (name, arg))
             elif datatype == 'bin.base64':
                 return b64decode(arg)
             elif datatype == 'bin.hex':
-                return bytearray.fromhex(arg)
+                return unhexlify(arg)
             elif datatype == 'uri':
                 return urlunparse(urlparse(arg))
             elif datatype == 'uuid':
