@@ -52,10 +52,7 @@ class Server(object):
         describing the server's services.
         """
         self.location = location
-        if server_name:
-            self.server_name = server_name
-        else:
-            self.server_name = location
+        self.server_name = location if server_name is None else server_name
         self.services = []
         self._log = _getLogger('SERVER')
 
@@ -104,24 +101,18 @@ class Server(object):
             action = service.find_action(action_name)
             if action:
                 return action
-        return None
 
     def call(self, action_name, args=None, **kwargs):
         """Directly call an action
         Convenience method for quickly finding and calling an Action on a
         Server.
         """
-        if args is None:
-            args = {}
-        args = args.copy()
-        if kwargs:
-            # Allow both a dictionary of arguments and normal named arguments
-            args.update(kwargs)
+        args = {} if args is None else args.copy()
+        # Allow both a dictionary of arguments and normal named arguments
+        args.update(kwargs)
 
         action = self.find_action(action_name)
-        if action:
-            return action.call(args)
-        return None
+        return action.call(args)
 
     def __repr__(self):
         return "<Server '%s'>" % (self.friendly_name)

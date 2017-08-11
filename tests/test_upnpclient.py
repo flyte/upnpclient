@@ -5,6 +5,7 @@ import os
 import datetime
 import base64
 import binascii
+import xml.dom.minidom
 from uuid import UUID
 
 import mock
@@ -373,3 +374,20 @@ class TestUPNP(unittest.TestCase):
         self.assertRaises(
             upnp.UPNPError, upnp.Action.validate_arg,
             "testarg", uuid, dict(datatype="uuid"))
+
+
+class EndPrematurelyException(Exception):
+    pass
+
+
+class TestSOAP(unittest.TestCase):
+    @mock.patch('requests.post', side_effect=EndPrematurelyException)
+    def test_call(self, mock_post):
+        url = 'http://www.example.com'
+        soap = upnp.SOAP(url, 'test')
+        self.assertRaises(EndPrematurelyException, soap.call, 'TestAction')
+        mock_post.assert_called()
+        args, _ = mock_post.call_args
+        call_url, body = args
+        self.assertEqual(url, call_url)
+        xml.dom.minidom.parseString(body)
