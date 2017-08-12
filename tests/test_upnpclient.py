@@ -60,8 +60,29 @@ class TestUPNP(unittest.TestCase):
     def setUp(self):
         self.server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
 
-    def test_discover(self):
-        upnp_servers = upnp.discover(0.1)
+    @mock.patch('upnpclient.ssdp.Server', return_value="test string")
+    @mock.patch('upnpclient.ssdp.scan')
+    def test_discover(self, mock_scan, mock_server):
+        url = 'http://www.example.com'
+        entry = mock.Mock()
+        entry.location = url
+        mock_scan.return_value = [entry, entry]
+        ret = upnp.discover()
+        mock_scan.assert_called()
+        mock_server.assert_called_with(url)
+        self.assertEqual(ret, ["test string"])
+
+    @mock.patch('upnpclient.ssdp.Server', side_effect=Exception)
+    @mock.patch('upnpclient.ssdp.scan')
+    def test_discover_exception(self, mock_scan, mock_server):
+        url = 'http://www.example.com'
+        entry = mock.Mock()
+        entry.location = url
+        mock_scan.return_value = [entry]
+        ret = upnp.discover()
+        mock_scan.assert_called()
+        mock_server.assert_called_with(url)
+        self.assertEqual(ret, [])
 
     def test_server(self):
         server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
