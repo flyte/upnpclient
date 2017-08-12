@@ -401,6 +401,77 @@ class TestSOAP(unittest.TestCase):
         self.assertEqual(url, call_url)
         xml.dom.minidom.parseString(body)
 
+    @mock.patch('requests.post')
+    def test_non_xml_error(self, mock_post):
+        exc = requests.exceptions.HTTPError()
+        exc.response = mock.Mock()
+        exc.response.text = 'this is not valid xml'
+        mock_post.side_effect = exc
+        soap = upnp.SOAP('http://www.example.com', 'test')
+        self.assertRaises(requests.exceptions.HTTPError, soap.call, 'TestAction')
+
+    @mock.patch('requests.post')
+    def test_missing_error_code_element(self, mock_post):
+        exc = requests.exceptions.HTTPError()
+        exc.response = mock.Mock()
+        exc.response.text = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+          <s:Body>
+            <s:Fault>
+              <faultcode>s:Client</faultcode>
+              <faultstring>UPnPError</faultstring>
+              <detail>
+                <UPnPError xmlns="urn:schemas-upnp-org:control-1-0">
+                  <errorDescription>Invalid Action</errorDescription>
+                </UPnPError>
+              </detail>
+            </s:Fault>
+          </s:Body>
+        </s:Envelope>
+        """.strip()
+        mock_post.side_effect = exc
+        soap = upnp.SOAP('http://www.example.com', 'test')
+        self.assertRaises(upnp.soap.SOAPProtocolError, soap.call, 'TestAction')
+
+    @mock.patch('requests.post')
+    def test_missing_error_description_element(self, mock_post):
+        exc = requests.exceptions.HTTPError()
+        exc.response = mock.Mock()
+        exc.response.text = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+          <s:Body>
+            <s:Fault>
+              <faultcode>s:Client</faultcode>
+              <faultstring>UPnPError</faultstring>
+              <detail>
+                <UPnPError xmlns="urn:schemas-upnp-org:control-1-0">
+                  <errorCode>401</errorCode>
+                </UPnPError>
+              </detail>
+            </s:Fault>
+          </s:Body>
+        </s:Envelope>
+        """.strip()
+        mock_post.side_effect = exc
+        soap = upnp.SOAP('http://www.example.com', 'test')
+        self.assertRaises(upnp.soap.SOAPProtocolError, soap.call, 'TestAction')
+
+    @mock.patch('requests.post')
+    def test_missing_response_element(self, mock_post):
+        ret = mock.Mock()
+        ret.text = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:SomeOtherElement xmlns:u="urn:schemas-upnp-org:service:Layer3Forwarding:1">
+                 <NewEnabled>true</NewEnabled>
+              </u:SomeOtherElement>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        soap = upnp.SOAP('http://www.example.com', 'test')
+        self.assertRaises(upnp.soap.SOAPProtocolError, soap.call, 'TestAction')
+
 
 class TestErrors(unittest.TestCase):
     desc = upnp.errors.ERR_CODE_DESCRIPTIONS
