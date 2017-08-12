@@ -143,5 +143,9 @@ Useful Links:
 from .upnp import Server, Action, Service, UPNPError
 from .soap import SOAP, SOAPError
 from .ssdp import discover
+from .errors import ERR_CODE_DESCRIPTIONS
 
-__all__ = ["Server", "Action", "Service", "UPNPError", "SOAP", "SOAPError", "discover"]
+__all__ = [
+    "Server", "Action", "Service", "UPNPError", "SOAP", "SOAPError", "discover",
+    "ERR_CODE_DESCRIPTIONS"
+]

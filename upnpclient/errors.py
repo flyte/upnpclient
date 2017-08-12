@@ -32,4 +32,4 @@ class UPnPErrorCodeDescriptions(object):
         return self._descriptions[key]
 
 
-CODE_DESCRIPTIONS = UPnPErrorCodeDescriptions()
+ERR_CODE_DESCRIPTIONS = UPnPErrorCodeDescriptions()
