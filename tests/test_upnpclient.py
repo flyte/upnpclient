@@ -115,7 +115,6 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_server(self, mock_post):
         ret = mock.Mock()
         ret.text = """
-        <?xml version="1.0" encoding="UTF-8"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
@@ -131,7 +130,6 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_noparam(self, mock_post):
         ret = mock.Mock()
         ret.text = """
-        <?xml version="1.0" encoding="UTF-8"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:GetAddressRangeResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
@@ -151,7 +149,6 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_param(self, mock_post):
         ret = mock.Mock()
         ret.text = """
-        <?xml version="1.0" encoding="UTF-8"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:SetDomainNameResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
@@ -169,10 +166,9 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_param_kw(self, mock_post):
         ret = mock.Mock()
         ret.text = """
-        <?xml version="1.0" encoding="UTF-8"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
-              <u:GetGenericPortMappingEntryResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+              <u:GetGenericPortMappingEntryResponse xmlns:u="urn:schemas-upnp-org:service:Layer3Forwarding:1">
                  <NewInternalClient>10.0.0.1</NewInternalClient>
                  <NewExternalPort>51773</NewExternalPort>
                  <NewEnabled>true</NewEnabled>
@@ -206,10 +202,9 @@ class TestUPNP(unittest.TestCase):
     def test_callaction_param_mashall_out(self, mock_post):
         ret = mock.Mock()
         ret.text = """
-        <?xml version="1.0" encoding="UTF-8"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
-              <u:GetGenericPortMappingEntryResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+              <u:GetGenericPortMappingEntryResponse xmlns:u="urn:schemas-upnp-org:service:Layer3Forwarding:1">
                  <NewInternalClient>10.0.0.1</NewInternalClient>
                  <NewExternalPort>51773</NewExternalPort>
                  <NewEnabled>true</NewEnabled>
@@ -233,19 +228,33 @@ class TestUPNP(unittest.TestCase):
             self.assertEqual(e.args[0], 401)
             self.assertEqual(e.args[1], 'Invalid action')
 
-    @mock.patch('requests.post', side_effect=requests.exceptions.HTTPError("""
-        <xml>
-          <errorCode>401</errorCode>
-          <errorDescription>Invalid action</errorDescription>
-        </xml>
-        """.strip()))
+    @mock.patch('requests.post')
     def test_callaction_forbidden(self, mock_post):
+        exc = requests.exceptions.HTTPError(500)
+        exc.response = mock.Mock()
+        exc.response.text = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+          <s:Body>
+            <s:Fault>
+              <faultcode>s:Client</faultcode>
+              <faultstring>UPnPError</faultstring>
+              <detail>
+                <UPnPError xmlns="urn:schemas-upnp-org:control-1-0">
+                  <errorCode>401</errorCode>
+                  <errorDescription>Invalid Action</errorDescription>
+                </UPnPError>
+              </detail>
+            </s:Fault>
+          </s:Body>
+        </s:Envelope>
+        """.strip()
+        mock_post.side_effect = exc
         action = self.server.find_action('SetDefaultConnectionService')
         try:
             action(NewDefaultConnectionService='foo')
         except upnp.SOAPError as e:
             self.assertEqual(e.args[0], 401)
-            self.assertEqual(e.args[1], 'Invalid action')
+            self.assertEqual(e.args[1], 'Invalid Action')
 
     def test_validate_date(self):
         v = upnp.Action.validate_arg("testarg", "2017-08-11", dict(datatype="date"))

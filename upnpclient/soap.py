@@ -1,13 +1,21 @@
-import xml.dom.minidom
-from textwrap import dedent
-
 import requests
+from lxml import etree
 
-from .util import _getLogger, _XMLGetNodeText
-from .const import HTTP_TIMEOUT
+from .util import _getLogger
+
+
+SOAP_TIMEOUT = 30
+NS_SOAP_ENV = 'http://schemas.xmlsoap.org/soap/envelope'
+NS_UPNP_ERR = 'urn:schemas-upnp-org:control-1-0'
+ENCODING_STYLE = 'http://schemas.xmlsoap.org/soap/encoding/'
+ENCODING = 'utf-8'
 
 
 class SOAPError(Exception):
+    pass
+
+
+class SOAPProtocolError(Exception):
     pass
 
 
@@ -24,22 +32,18 @@ class SOAP(object):
     def call(self, action_name, arg_in=None):
         if arg_in is None:
             arg_in = {}
-        arg_values = '\n'.join(['<%s>%s</%s>' % (k, v, k) for k, v in arg_in.items()])
-        body = dedent("""
-            <?xml version="1.0"?>
-            <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope" SOAP-ENV:e\
-ncodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-             <SOAP-ENV:Body>
-              <m:{action_name} xmlns:m="{service_type}">
-               {arg_values}
-              </m:{action_name}>
-             </SOAP-ENV:Body>
-            </SOAP-ENV:Envelope>
-            """.format(
-                action_name=action_name,
-                service_type=self.service_type,
-                arg_values=arg_values,
-            ).strip())
+
+        soap_env = '{%s}' % NS_SOAP_ENV
+        m = '{%s}' % self.service_type
+
+        root = etree.Element(soap_env+'Envelope', nsmap={'SOAP-ENV': NS_SOAP_ENV})
+        root.attrib[soap_env+'encodingStyle'] = ENCODING_STYLE
+        body = etree.SubElement(root, soap_env+'Body')
+        action = etree.SubElement(body, m+action_name, nsmap={'m': self.service_type})
+        for key, value in arg_in.items():
+            etree.SubElement(action, key).text = str(value)
+        body = etree.tostring(root, encoding=ENCODING, xml_declaration=True)
+
         headers = {
             'SOAPAction': '"%s#%s"' % (self.service_type, action_name),
             'Host': self._host,
@@ -48,23 +52,29 @@ ncodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
         }
 
         try:
-            resp = requests.post(self.url, body, headers=headers, timeout=HTTP_TIMEOUT)
+            resp = requests.post(self.url, body, headers=headers, timeout=SOAP_TIMEOUT)
             resp.raise_for_status()
         except requests.exceptions.HTTPError as exc:
-            soap_error_xml = xml.dom.minidom.parseString(str(exc))
-            raise SOAPError(
-                int(_XMLGetNodeText(soap_error_xml.getElementsByTagName('errorCode')[0])),
-                _XMLGetNodeText(soap_error_xml.getElementsByTagName('errorDescription')[0]),
-            )
+            # If the body of the error response contains XML then it should be a UPnP error,
+            # otherwise reraise the HTTPError.
+            try:
+                err_xml = etree.fromstring(exc.response.text)
+            except etree.XMLSyntaxError:
+                raise exc
+            err_code = err_xml.findtext(
+                './/{%s}errorCode' % NS_UPNP_ERR, namespaces={None: NS_UPNP_ERR})
+            err_desc = err_xml.findtext(
+                './/{%s}errorDescription' % NS_UPNP_ERR, namespaces={None: NS_UPNP_ERR})
+            if err_code is None or err_desc is None:
+                raise SOAPProtocolError(
+                    'Tags with namespace %r and names errorCode or errorDescription were not found '
+                    'in the error reponse.' % NS_UPNP_ERR)
+            raise SOAPError(int(err_code), err_desc)
 
-        raw_xml = resp.text.strip()
-        contents = xml.dom.minidom.parseString(raw_xml)
-
-        params_out = {}
-        for node in contents.getElementsByTagName('*'):
-            if node.localName.lower().endswith('response'):
-                for param_out_node in node.childNodes:
-                    if param_out_node.nodeType == param_out_node.ELEMENT_NODE:
-                        params_out[param_out_node.localName] = _XMLGetNodeText(param_out_node)
-
-        return params_out
+        xml = etree.fromstring(resp.text.strip())
+        response = xml.find(".//{%s}%sResponse" % (self.service_type, action_name))
+        if response is None:
+            raise SOAPProtocolError(
+                'Returned XML did not include an element which matches namespace %r and tag name '
+                '\'%sResponse\'.' % (self.service_type, action_name))
+        return {x.tag: x.text for x in response.getchildren()}

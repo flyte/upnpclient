@@ -71,9 +71,9 @@ class Server(object):
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
             self._url_base = self.location
-        self._readServices()
+        self._read_services()
 
-    def _readServices(self):
+    def _read_services(self):
         """
         Read the control XML file and populate self.services with a list of
         services in the form of Service class instances.
@@ -147,10 +147,10 @@ class Service(object):
         resp.raise_for_status()
         self.scpd_xml = xml.dom.minidom.parseString(resp.text)
 
-        self._readStateVariables()
-        self._readActions()
+        self._read_state_vars()
+        self._read_actions()
 
-    def _readStateVariables(self):
+    def _read_state_vars(self):
         for statevar_node in self.scpd_xml.getElementsByTagName('stateVariable'):
             statevar_name = _XMLGetNodeText(statevar_node.getElementsByTagName('name')[0])
             statevar_datatype = _XMLGetNodeText(statevar_node.getElementsByTagName('dataType')[0])
@@ -165,7 +165,7 @@ class Service(object):
                 'allowed_values': statevar_allowed_values,
             }
 
-    def _readActions(self):
+    def _read_actions(self):
         action_url = urljoin(self._url_base, self._control_url)
         for action_node in self.scpd_xml.getElementsByTagName('action'):
             name = _XMLGetNodeText(action_node.getElementsByTagName('name')[0])
@@ -268,12 +268,12 @@ class Action(object):
             elif datatype in ['r8', 'number', 'float', 'fixed.14.4']:
                 v = Decimal(arg)
                 if v < 0:
-                    assert (
-                        v >= Decimal('-1.79769313486232E308') and
+                    assert all(
+                        v >= Decimal('-1.79769313486232E308'),
                         v <= Decimal('4.94065645841247E-324'))
                 else:
-                    assert (
-                        v >= Decimal('4.94065645841247E-324') and
+                    assert all(
+                        v >= Decimal('4.94065645841247E-324'),
                         v <= Decimal('1.79769313486232E308'))
             elif datatype == 'char':
                 v = arg.decode('utf8') if six.PY2 or isinstance(arg, bytes) else arg
