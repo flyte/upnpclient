@@ -26,7 +26,7 @@ except ImportError:
     import SocketServer as sockserver
 
 
-class TestUPNP(unittest.TestCase):
+class TestUPnPClientWithServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
@@ -60,34 +60,10 @@ class TestUPNP(unittest.TestCase):
     def setUp(self):
         self.server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
 
-    @mock.patch('upnpclient.ssdp.Server', return_value="test string")
-    @mock.patch('upnpclient.ssdp.scan')
-    def test_discover(self, mock_scan, mock_server):
-        url = 'http://www.example.com'
-        entry = mock.Mock()
-        entry.location = url
-        mock_scan.return_value = [entry, entry]
-        ret = upnp.discover()
-        mock_scan.assert_called()
-        mock_server.assert_called_with(url)
-        self.assertEqual(ret, ["test string"])
-
-    @mock.patch('upnpclient.ssdp.Server', side_effect=Exception)
-    @mock.patch('upnpclient.ssdp.scan')
-    def test_discover_exception(self, mock_scan, mock_server):
-        url = 'http://www.example.com'
-        entry = mock.Mock()
-        entry.location = url
-        mock_scan.return_value = [entry]
-        ret = upnp.discover()
-        mock_scan.assert_called()
-        mock_server.assert_called_with(url)
-        self.assertEqual(ret, [])
-
-    def test_server(self):
-        server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
-
     def test_server_props(self):
+        """
+        `Server` instance should contain the properties from the XML.
+        """
         server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
         self.assertEqual(server.device_type, 'urn:schemas-upnp-org:device:InternetGatewayDevice:1')
         self.assertEqual(server.friendly_name, 'SpeedTouch 5x6 (0320FJ2PZ)')
@@ -98,6 +74,9 @@ class TestUPNP(unittest.TestCase):
         self.assertEqual(server.serial_number, '0320FJ2PZ')
 
     def test_server_nonexists(self):
+        """
+        Should return `HTTPError` if the XML is not found on the server.
+        """
         self.assertRaises(
             requests.exceptions.HTTPError,
             upnp.Server,
@@ -105,35 +84,56 @@ class TestUPNP(unittest.TestCase):
         )
 
     def test_services(self):
+        """
+        All of the services from the XML should be present in the server services.
+        """
         service_ids = [service.service_id for service in self.server.services]
         self.assertIn('urn:upnp-org:serviceId:layer3f', service_ids)
         self.assertIn('urn:upnp-org:serviceId:lanhcm', service_ids)
         self.assertIn('urn:upnp-org:serviceId:wancic', service_ids)
 
     def test_actions(self):
-        actions = []
-        [actions.extend(service.actions) for service in self.server.services]
-        action_names = [action.name for action in actions]
+        """
+        Action names should be present in the list of server actions.
+        """
+        action_names = set()
+        for service in self.server.services:
+            for action in service.actions:
+                action_names.add(action.name)
+
         self.assertIn('SetDefaultConnectionService', action_names)
         self.assertIn('GetCommonLinkProperties', action_names)
         self.assertIn('GetDNSServers', action_names)
         self.assertIn('GetDHCPRelay', action_names)
 
     def test_findaction_server(self):
+        """
+        Should find and return the correct action.
+        """
         action = self.server.find_action('GetSubnetMask')
         self.assertIsInstance(action, upnp.Action)
+        self.assertEqual(action.name, 'GetSubnetMask')
 
     def test_findaction_server_nonexists(self):
+        """
+        Should return None if no action is found with the given name.
+        """
         action = self.server.find_action('GetNoneExistingAction')
         self.assertEqual(action, None)
 
     def test_findaction_service_nonexists(self):
+        """
+        Should return None if no action is found with the given name.
+        """
         service = self.server.services[0]
         action = self.server.find_action('GetNoneExistingAction')
         self.assertEqual(action, None)
 
     @mock.patch('requests.post')
     def test_callaction_server(self, mock_post):
+        """
+        Should be able to call the server with the name of an action.
+        """
         ret = mock.Mock()
         ret.text = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -145,10 +145,14 @@ class TestUPNP(unittest.TestCase):
         </s:Envelope>
         """
         mock_post.return_value = ret
-        self.server('GetSubnetMask')
+        ret = self.server('GetSubnetMask')
+        self.assertEqual(ret, dict(NewSubnetMask="255.255.255.0"))
 
     @mock.patch('requests.post')
     def test_callaction_noparam(self, mock_post):
+        """
+        Should be able to call an action with no params and get the results.
+        """
         ret = mock.Mock()
         ret.text = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -162,12 +166,17 @@ class TestUPNP(unittest.TestCase):
         """
         mock_post.return_value = ret
         action = self.server.find_action('GetAddressRange')
+        self.assertIsInstance(action, upnp.Action)
         response = action()
-        self.assertIn('NewMinAddress', response)
-        self.assertIn('NewMaxAddress', response)
+        self.assertIsInstance(response, dict)
+        self.assertEqual(response['NewMinAddress'], '10.0.0.2')
+        self.assertEqual(response['NewMaxAddress'], '10.0.0.254')
 
     @mock.patch('requests.post')
     def test_callaction_param(self, mock_post):
+        """
+        Should be able to call an action with parameters and get the results.
+        """
         ret = mock.Mock()
         ret.text = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -181,7 +190,7 @@ class TestUPNP(unittest.TestCase):
         mock_post.return_value = ret
         action = self.server.find_action('SetDomainName')
         response = action(NewDomainName='github.com')
-        self.assertIn('NewDomainName', response)
+        self.assertEqual(response, dict(NewDomainName='github.com'))
 
     @mock.patch('requests.post')
     def test_callaction_param_kw(self, mock_post):
@@ -200,9 +209,9 @@ class TestUPNP(unittest.TestCase):
         mock_post.return_value = ret
         action = self.server.find_action('GetGenericPortMappingEntry')
         response = action(NewPortMappingIndex=0)
-        self.assertIn('NewInternalClient', response)
-        self.assertIn('NewExternalPort', response)
-        self.assertIn('NewEnabled', response)
+        self.assertEqual(response['NewInternalClient'], '10.0.0.1')
+        self.assertEqual(response['NewExternalPort'], 51773)
+        self.assertEqual(response['NewEnabled'], True)
 
     def test_callaction_param_missing(self):
         action = self.server.find_action('GetGenericPortMappingEntry')
@@ -276,6 +285,32 @@ class TestUPNP(unittest.TestCase):
         except upnp.SOAPError as e:
             self.assertEqual(e.args[0], 401)
             self.assertEqual(e.args[1], 'Invalid Action')
+
+
+class TestUPnPClientNoServer(unittest.TestCase):
+    @mock.patch('upnpclient.ssdp.Server', return_value="test string")
+    @mock.patch('upnpclient.ssdp.scan')
+    def test_discover(self, mock_scan, mock_server):
+        url = 'http://www.example.com'
+        entry = mock.Mock()
+        entry.location = url
+        mock_scan.return_value = [entry, entry]
+        ret = upnp.discover()
+        mock_scan.assert_called()
+        mock_server.assert_called_with(url)
+        self.assertEqual(ret, ["test string"])
+
+    @mock.patch('upnpclient.ssdp.Server', side_effect=Exception)
+    @mock.patch('upnpclient.ssdp.scan')
+    def test_discover_exception(self, mock_scan, mock_server):
+        url = 'http://www.example.com'
+        entry = mock.Mock()
+        entry.location = url
+        mock_scan.return_value = [entry]
+        ret = upnp.discover()
+        mock_scan.assert_called()
+        mock_server.assert_called_with(url)
+        self.assertEqual(ret, [])
 
     def test_validate_date(self):
         v = upnp.Action.validate_arg("testarg", "2017-08-11", dict(datatype="date"))

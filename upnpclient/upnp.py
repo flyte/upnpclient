@@ -289,11 +289,10 @@ class Action(object):
             elif datatype in ('dateTime', 'dateTime.tz'):
                 return parse_date(arg)
             elif datatype in ('time', 'time.tz'):
-                v = parse_date(arg)
                 now = datetime.datetime.utcnow()
+                v = parse_date(arg, default=now)
                 if v.tzinfo is not None:
                     now += v.utcoffset()
-                # Tiny race condition!
                 assert all((
                     v.day == now.day,
                     v.month == now.month,
@@ -322,7 +321,7 @@ class Action(object):
                     arg,
                     re.I
                 )
-                v = UUID(arg)
+                return UUID(arg)
             else:
                 raise UPNPError("%s datatype of %r is unrecognised." % (name, datatype))
         except Exception as exc:
