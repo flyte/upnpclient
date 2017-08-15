@@ -1,16 +1,17 @@
-import xml.dom.minidom
 import re
 import datetime
 from decimal import Decimal
 from base64 import b64decode
 from binascii import unhexlify
+from functools import partial
 
 import six
 import requests
 from requests.compat import urljoin, urlparse
 from dateutil.parser import parse as parse_date
+from lxml import etree
 
-from .util import _getLogger, _XMLFindNodeText, _XMLGetNodeText, marshall_from
+from .util import _getLogger, marshall_from
 from .const import HTTP_TIMEOUT
 from .soap import SOAP
 
@@ -50,21 +51,21 @@ class CallActionMixin(object):
         raise InvalidActionException('Action with name %r does not exist.' % action_name)
 
 
-class Server(CallActionMixin):
+class Device(CallActionMixin):
     """
-    UPNP Server represention.
-    This class represents an UPnP server. `location` is an URL to a control XML
-    file, per UPnP standard section 2.1 ('Device Description'). This MUST match
+    UPNP Device represention.
+    This class represents an UPnP device. `location` is an URL to a control XML
+    file, per UPnP standard section 2.3 ('Device Description'). This MUST match
     the URL as given in the 'Location' header when using discovery (SSDP).
-    `server_name` is a name for the server, which may be obtained using the
+    `device_name` is a name for the device, which may be obtained using the
     SSDP class or may be made up by the caller.
 
     Raises urllib2.HTTPError when the location is invalid
 
     Example:
 
-    >>> server = Server('http://192.168.1.254:80/upnp/IGD.xml')
-    >>> for service in server.services:
+    >>> device = Device('http://192.168.1.254:80/upnp/IGD.xml')
+    >>> for service in device.services:
     ...     print service.service_id
     ...
     urn:upnp-org:serviceId:layer3f
@@ -72,32 +73,39 @@ class Server(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
-    def __init__(self, location, server_name=None):
+    def __init__(self, location, device_name=None):
         """
-        Create a new Server instance. `location` is an URL to an XML file
+        Create a new Device instance. `location` is an URL to an XML file
         describing the server's services.
         """
         self.location = location
-        self.server_name = location if server_name is None else server_name
+        self.device_name = location if device_name is None else device_name
         self.services = []
-        self._log = _getLogger('SERVER')
+        self._log = _getLogger('Device')
 
-        resp = requests.get(self.location, timeout=HTTP_TIMEOUT)
+        resp = requests.get(location, timeout=HTTP_TIMEOUT)
         resp.raise_for_status()
-        self._root_xml = xml.dom.minidom.parseString(resp.text)
-        self.device_type = _XMLFindNodeText(self._root_xml, 'deviceType')
-        self.friendly_name = _XMLFindNodeText(self._root_xml, 'friendlyName')
-        self.manufacturer = _XMLFindNodeText(self._root_xml, 'manufacturer')
-        self.model_description = _XMLFindNodeText(self._root_xml, 'modelDescription')
-        self.model_name = _XMLFindNodeText(self._root_xml, 'modelName')
-        self.model_number = _XMLFindNodeText(self._root_xml, 'modelNumber')
-        self.serial_number = _XMLFindNodeText(self._root_xml, 'serialNumber')
 
-        self._url_base = _XMLFindNodeText(self._root_xml, 'URLBase')
+        root = etree.fromstring(resp.text)
+        findtext = partial(root.findtext, namespaces=root.nsmap)
+
+        self.device_type = findtext('device/deviceType')
+        self.friendly_name = findtext('device/friendlyName')
+        self.manufacturer = findtext('device/manufacturer')
+        self.model_description = findtext('device/modelDescription')
+        self.model_name = findtext('device/modelName')
+        self.model_number = findtext('device/modelNumber')
+        self.serial_number = findtext('device/serialNumber')
+
+        self._url_base = findtext('URLBase')
         if self._url_base == '':
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
             self._url_base = self.location
+        self._root_xml = root
+        self._findtext = findtext
+        self._find = partial(root.find, namespaces=root.nsmap)
+        self._findall = partial(root.findall, namespaces=root.nsmap)
         self._read_services()
 
     def _read_services(self):
@@ -106,15 +114,18 @@ class Server(CallActionMixin):
         services in the form of Service class instances.
         """
         # Build a flat list of all services offered by the UPNP server
-        for node in self._root_xml.getElementsByTagName('service'):
-            service_type = _XMLGetNodeText(node.getElementsByTagName('serviceType')[0])
-            service_id = _XMLGetNodeText(node.getElementsByTagName('serviceId')[0])
-            control_url = _XMLGetNodeText(node.getElementsByTagName('controlURL')[0])
-            scpd_url = _XMLGetNodeText(node.getElementsByTagName('SCPDURL')[0])
-            event_sub_url = _XMLGetNodeText(node.getElementsByTagName('eventSubURL')[0])
-            self._log.info('%s: Service "%s" at %s' % (self.server_name, service_type, scpd_url))
-            self.services.append(Service(
-                self._url_base, service_type, service_id, control_url, scpd_url, event_sub_url))
+        for node in self._findall('device//serviceList/service'):
+            findtext = partial(node.findtext, namespaces=self._root_xml.nsmap)
+            svc = Service(
+                self._url_base,
+                findtext('serviceType'),
+                findtext('serviceId'),
+                findtext('controlURL'),
+                findtext('SCPDURL'),
+                findtext('eventSubURL')
+            )
+            self._log.info('%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
+            self.services.append(svc)
 
     def find_action(self, action_name):
         """Find an action by name.
@@ -129,7 +140,7 @@ class Server(CallActionMixin):
                 return action
 
     def __repr__(self):
-        return "<Server '%s'>" % (self.friendly_name)
+        return "<Device '%s'>" % (self.friendly_name)
 
 
 class Service(CallActionMixin):
@@ -143,56 +154,57 @@ class Service(CallActionMixin):
         self.service_type = service_type
         self.service_id = service_id
         self._control_url = control_url
-        self._scpd_url = scpd_url
+        self.scpd_url = scpd_url
         self._event_sub_url = event_sub_url
 
         self.actions = []
         self._action_map = {}
         self.statevars = {}
-        self._log = _getLogger('SERVICE')
+        self._log = _getLogger('Service')
 
         self._log.debug('%s url_base: %s', self.service_id, self._url_base)
-        self._log.debug('%s SCPDURL: %s', self.service_id, self._scpd_url)
+        self._log.debug('%s SCPDURL: %s', self.service_id, self.scpd_url)
         self._log.debug('%s controlURL: %s', self.service_id, self._control_url)
         self._log.debug('%s eventSubURL: %s', self.service_id, self._event_sub_url)
 
-        url = urljoin(self._url_base, self._scpd_url)
+        url = urljoin(self._url_base, self.scpd_url)
         self._log.info('Reading %s', url)
         resp = requests.get(url, timeout=HTTP_TIMEOUT)
         resp.raise_for_status()
-        self.scpd_xml = xml.dom.minidom.parseString(resp.text)
+        self.scpd_xml = etree.fromstring(resp.text)
+        self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
+        self._findtext = partial(self.scpd_xml.findtext, namespaces=self.scpd_xml.nsmap)
+        self._findall = partial(self.scpd_xml.findall, namespaces=self.scpd_xml.nsmap)
 
         self._read_state_vars()
         self._read_actions()
 
     def _read_state_vars(self):
-        for statevar_node in self.scpd_xml.getElementsByTagName('stateVariable'):
-            statevar_name = _XMLGetNodeText(statevar_node.getElementsByTagName('name')[0])
-            statevar_datatype = _XMLGetNodeText(statevar_node.getElementsByTagName('dataType')[0])
-            statevar_allowed_values = []
-
-            for allowed_node in statevar_node.getElementsByTagName('allowedValueList'):
-                for allowed_value_node in allowed_node.getElementsByTagName('allowedValue'):
-                    statevar_allowed_values.append(_XMLGetNodeText(allowed_value_node))
-            self.statevars[statevar_name] = {
-                'name': statevar_name,
-                'datatype': statevar_datatype,
-                'allowed_values': statevar_allowed_values,
-            }
+        for statevar_node in self._findall('serviceStateTable/stateVariable'):
+            findtext = partial(statevar_node.findtext, namespaces=statevar_node.nsmap)
+            findall = partial(statevar_node.findall, namespaces=statevar_node.nsmap)
+            name = findtext('name')
+            datatype = findtext('dataType')
+            allowed_values = set([e.text for e in findall('allowedValueList/allowedValue')])
+            self.statevars[name] = dict(
+                name=name,
+                datatype=datatype,
+                allowed_values=allowed_values
+            )
 
     def _read_actions(self):
         action_url = urljoin(self._url_base, self._control_url)
-        for action_node in self.scpd_xml.getElementsByTagName('action'):
-            name = _XMLGetNodeText(action_node.getElementsByTagName('name')[0])
+
+        for action_node in self._findall('actionList/action'):
+            name = action_node.findtext('name', namespaces=action_node.nsmap)
             argsdef_in = []
             argsdef_out = []
-            for arg_node in action_node.getElementsByTagName('argument'):
-                arg_name = _XMLGetNodeText(arg_node.getElementsByTagName('name')[0])
-                arg_dir = _XMLGetNodeText(arg_node.getElementsByTagName('direction')[0])
-                arg_statevar = self.statevars[
-                    _XMLGetNodeText(arg_node.getElementsByTagName('relatedStateVariable')[0])
-                ]
-                if arg_dir == 'in':
+            for arg_node in action_node.findall(
+                    'argumentList/argument', namespaces=action_node.nsmap):
+                findtext = partial(arg_node.findtext, namespaces=arg_node.nsmap)
+                arg_name = findtext('name')
+                arg_statevar = self.statevars[findtext('relatedStateVariable')]
+                if findtext('direction').lower() == 'in':
                     argsdef_in.append((arg_name, arg_statevar))
                 else:
                     argsdef_out.append((arg_name, arg_statevar))
@@ -221,7 +233,7 @@ class Action(object):
         self.name = name
         self.argsdef_in = argsdef_in
         self.argsdef_out = argsdef_out
-        self._log = _getLogger('ACTION')
+        self._log = _getLogger('Action')
 
     def __call__(self, **kwargs):
         arg_reasons = {}

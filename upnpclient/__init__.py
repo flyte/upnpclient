@@ -141,10 +141,10 @@ Useful Links:
 * http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf
 """
 from upnpclient import const, errors, marshal, soap, ssdp, upnp, util  # noqa: F401
-from .upnp import Server, Action, Service, UPNPError, InvalidActionException, ValidationError
+from .upnp import Device, Action, Service, UPNPError, InvalidActionException, ValidationError
 from .ssdp import discover
 
 __all__ = [
-    "Server", "Action", "Service", "UPNPError", "InvalidActionException", "ValidationError",
+    "Device", "Action", "Service", "UPNPError", "InvalidActionException", "ValidationError",
     "discover"
 ]

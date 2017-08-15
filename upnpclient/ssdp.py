@@ -1,22 +1,22 @@
 from netdisco.ssdp import scan
 
-from .upnp import Server
+from .upnp import Device
 from .util import _getLogger
 
 
 def discover(timeout=5):
     """
     Convenience method to discover UPnP devices on the network. Returns a
-    list of `upnp.Server` instances. Any invalid servers are silently
+    list of `upnp.Device` instances. Any invalid servers are silently
     ignored.
     """
-    servers = {}
+    devices = {}
     for entry in scan(timeout):
-        if entry.location in servers:
+        if entry.location in devices:
             continue
         try:
-            servers[entry.location] = Server(entry.location)
+            devices[entry.location] = Device(entry.location)
         except Exception as exc:
             log = _getLogger("ssdp")
             log.error('Error \'%s\' for %s', exc, entry.location)
-    return list(servers.values())
+    return list(devices.values())

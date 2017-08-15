@@ -5,12 +5,12 @@ import os
 import datetime
 import base64
 import binascii
-import xml.dom.minidom
 from uuid import UUID
 
 import mock
 import requests
 from requests.compat import basestring
+from lxml import etree
 
 import upnpclient as upnp
 
@@ -63,13 +63,13 @@ class TestUPnPClientWithServer(unittest.TestCase):
             pass
 
     def setUp(self):
-        self.server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
+        self.server = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
 
-    def test_server_props(self):
+    def test_device_props(self):
         """
-        `Server` instance should contain the properties from the XML.
+        `Device` instance should contain the properties from the XML.
         """
-        server = upnp.Server('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
+        server = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
         self.assertEqual(server.device_type, 'urn:schemas-upnp-org:device:InternetGatewayDevice:1')
         self.assertEqual(server.friendly_name, 'SpeedTouch 5x6 (0320FJ2PZ)')
         self.assertEqual(server.manufacturer, 'Pannaway')
@@ -78,13 +78,13 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(server.model_number, 'RG-210')
         self.assertEqual(server.serial_number, '0320FJ2PZ')
 
-    def test_server_nonexists(self):
+    def test_device_nonexists(self):
         """
         Should return `HTTPError` if the XML is not found on the server.
         """
         self.assertRaises(
             requests.exceptions.HTTPError,
-            upnp.Server,
+            upnp.Device,
             'http://127.0.0.1:%s/upnp/DOESNOTEXIST.xml' % self.httpd_port
         )
 
@@ -285,7 +285,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
 
 
 class TestUPnPClientNoServer(unittest.TestCase):
-    @mock.patch('upnpclient.ssdp.Server', return_value='test string')
+    @mock.patch('upnpclient.ssdp.Device', return_value='test string')
     @mock.patch('upnpclient.ssdp.scan')
     def test_discover(self, mock_scan, mock_server):
         """
@@ -300,7 +300,7 @@ class TestUPnPClientNoServer(unittest.TestCase):
         mock_server.assert_called_with(url)
         self.assertEqual(ret, ['test string'])
 
-    @mock.patch('upnpclient.ssdp.Server', side_effect=Exception)
+    @mock.patch('upnpclient.ssdp.Device', side_effect=Exception)
     @mock.patch('upnpclient.ssdp.scan')
     def test_discover_exception(self, mock_scan, mock_server):
         """
@@ -562,7 +562,7 @@ class TestSOAP(unittest.TestCase):
         args, _ = mock_post.call_args
         call_url, body = args
         self.assertEqual(url, call_url)
-        xml.dom.minidom.parseString(body)
+        etree.fromstring(body)
 
     @mock.patch('requests.post')
     def test_non_xml_error(self, mock_post):
