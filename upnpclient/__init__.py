@@ -140,12 +140,11 @@ Useful Links:
 * https://embeddedinn.wordpress.com/tutorials/upnp-device-architecture/
 * http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf
 """
-from .upnp import Server, Action, Service, UPNPError
-from .soap import SOAP, SOAPError
+from upnpclient import const, errors, marshal, soap, ssdp, upnp, util  # noqa: F401
+from .upnp import Server, Action, Service, UPNPError, InvalidActionException, ValidationError
 from .ssdp import discover
-from .errors import ERR_CODE_DESCRIPTIONS
 
 __all__ = [
-    "Server", "Action", "Service", "UPNPError", "SOAP", "SOAPError", "discover",
-    "ERR_CODE_DESCRIPTIONS"
+    "Server", "Action", "Service", "UPNPError", "InvalidActionException", "ValidationError",
+    "discover"
 ]

@@ -3,12 +3,11 @@ import re
 import datetime
 from decimal import Decimal
 from base64 import b64decode
-from uuid import UUID
 from binascii import unhexlify
 
 import six
 import requests
-from requests.compat import urljoin, urlparse, urlunparse
+from requests.compat import urljoin, urlparse
 from dateutil.parser import parse as parse_date
 
 from .util import _getLogger, _XMLFindNodeText, _XMLGetNodeText, marshall_from
@@ -23,7 +22,35 @@ class UPNPError(Exception):
     pass
 
 
-class Server(object):
+class InvalidActionException(UPNPError):
+    """
+    Action doesn't exist.
+    """
+    pass
+
+
+class ValidationError(UPNPError):
+    """
+    Given value didn't validate with the given data type.
+    """
+    def __init__(self, reasons):
+        super(ValidationError, self).__init__()
+        self.reasons = reasons
+
+
+class CallActionMixin(object):
+    def __call__(self, action_name, **kwargs):
+        """
+        Convenience method for quickly finding and calling an Action on a
+        Service. Must have implemented a `find_action(action_name)` method.
+        """
+        action = self.find_action(action_name)
+        if action is not None:
+            return action(**kwargs)
+        raise InvalidActionException('Action with name %r does not exist.' % action_name)
+
+
+class Server(CallActionMixin):
     """
     UPNP Server represention.
     This class represents an UPnP server. `location` is an URL to a control XML
@@ -98,30 +125,19 @@ class Server(object):
         """
         for service in self.services:
             action = service.find_action(action_name)
-            if action:
+            if action is not None:
                 return action
-
-    def __call__(self, action_name, **kwargs):
-        """
-        Convenience method for quickly finding and calling an Action on a
-        Server.
-        """
-        action = self.find_action(action_name)
-        if action is not None:
-            return action(**kwargs)
 
     def __repr__(self):
         return "<Server '%s'>" % (self.friendly_name)
 
 
-class Service(object):
+class Service(CallActionMixin):
     """
     Service Control Point Definition. This class reads an SCPD XML file and
     parses the actions and state variables. It can then be used to call
     actions.
     """
-    # FIXME: marshall call arguments
-    # FIXME: Check allowed string values
     def __init__(self, url_base, service_type, service_id, control_url, scpd_url, event_sub_url):
         self._url_base = url_base
         self.service_type = service_type
@@ -140,7 +156,6 @@ class Service(object):
         self._log.debug('%s controlURL: %s', self.service_id, self._control_url)
         self._log.debug('%s eventSubURL: %s', self.service_id, self._event_sub_url)
 
-        # FIXME: http://192.168.1.2:1780/InternetGatewayDevice.xml/x_layer3forwarding.xml
         url = urljoin(self._url_base, self._scpd_url)
         self._log.info('Reading %s', url)
         resp = requests.get(url, timeout=HTTP_TIMEOUT)
@@ -186,18 +201,10 @@ class Service(object):
             self.actions.append(action)
 
     def find_action(self, action_name):
-        if action_name in self._action_map:
+        try:
             return self._action_map[action_name]
-        return None
-
-    def __call__(self, action_name, **kwargs):
-        """
-        Convenience method for quickly finding and calling an Action on a
-        Service.
-        """
-        action = self.find_action(action_name)
-        if action is not None:
-            return action(**kwargs)
+        except KeyError:
+            pass
 
     def __repr__(self):
         return "<Service service_id='%s'>" % (self.service_id)
@@ -217,11 +224,17 @@ class Action(object):
         self._log = _getLogger('ACTION')
 
     def __call__(self, **kwargs):
+        arg_reasons = {}
         # Validate arguments using the SCPD stateVariable definitions
         for name, statevar in self.argsdef_in:
             if name not in kwargs:
                 raise UPNPError('Missing required param \'%s\'' % (name))
-            self.validate_arg(name, kwargs[name], statevar)
+            valid, reasons = self.validate_arg(kwargs[name], statevar)
+            if not valid:
+                arg_reasons[name] = reasons
+
+        if arg_reasons:
+            raise ValidationError(arg_reasons)
 
         # Make the actual call
         soap_client = SOAP(self.url, self.service_type)
@@ -235,100 +248,94 @@ class Action(object):
         return out
 
     @staticmethod
-    def validate_arg(name, arg, argdef):
+    def validate_arg(arg, argdef):
         """
-        Validate and convert an incoming (unicode) string argument according
-        the UPnP spec. Raises UPNPError.
+        Validate an incoming (unicode) string argument according the UPnP spec. Raises UPNPError.
         """
         datatype = argdef['datatype']
+        reasons = set()
+        ranges = {
+            'ui1': (int, 0, 255),
+            'ui2': (int, 0, 65535),
+            'ui4': (int, 0, 4294967295),
+            'i1': (int, -128, 127),
+            'i2': (int, -32768, 32767),
+            'i4': (int, -2147483648, 2147483647),
+            'r4': (Decimal, Decimal('3.40282347E+38'), Decimal('1.17549435E-38'))
+        }
         try:
-            if datatype == 'ui1':
-                v = int(arg)
-                assert v >= 0 and v <= 255
-            elif datatype == 'ui2':
-                v = int(arg)
-                assert v >= 0 and v <= 65535
-            elif datatype == 'ui4':
-                v = int(arg)
-                assert v >= 0 and v <= 4294967295
-            elif datatype == 'i1':
-                v = int(arg)
-                assert v >= -128 and v <= 127
-            elif datatype == 'i2':
-                v = int(arg)
-                assert v >= -32768 and v <= 32767
-            elif datatype == 'i4':
-                v = int(arg)
-                assert v >= -2147483648 and v <= 2147483647
-            elif datatype == 'i4':
-                return int(arg)
-            elif datatype == 'r4':
-                v = Decimal(arg)
-                assert v >= Decimal('3.40282347E+38') and v <= Decimal('1.17549435E-38')
-            elif datatype in ['r8', 'number', 'float', 'fixed.14.4']:
+            if datatype in set(ranges.keys()):
+                v_type, v_min, v_max = ranges[datatype]
+                if not v_min <= v_type(arg) <= v_max:
+                    reasons.add('%r datatype must be a number in the range %s to %s' % (
+                        datatype, v_min, v_max))
+
+            elif datatype in {'r8', 'number', 'float', 'fixed.14.4'}:
                 v = Decimal(arg)
                 if v < 0:
-                    assert all(
-                        v >= Decimal('-1.79769313486232E308'),
-                        v <= Decimal('4.94065645841247E-324'))
+                    assert Decimal('-1.79769313486232E308') <= v <= Decimal('4.94065645841247E-324')
                 else:
-                    assert all(
-                        v >= Decimal('4.94065645841247E-324'),
-                        v <= Decimal('1.79769313486232E308'))
+                    assert Decimal('4.94065645841247E-324') <= v <= Decimal('1.79769313486232E308')
+
             elif datatype == 'char':
                 v = arg.decode('utf8') if six.PY2 or isinstance(arg, bytes) else arg
                 assert len(v) == 1
+
             elif datatype == 'string':
                 v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
                 if argdef['allowed_values'] and v not in argdef['allowed_values']:
-                    raise UPNPError('Value \'%s\' not allowed for param \'%s\'' % (arg, name))
+                    reasons.add('Value %r not in allowed values list' % arg)
+
             elif datatype == 'date':
                 v = parse_date(arg)
-                assert not any((v.hour, v.minute, v.second))
-                return v.date()
+                if any((v.hour, v.minute, v.second)):
+                    reasons.add("'date' datatype must not contain a time")
+
             elif datatype in ('dateTime', 'dateTime.tz'):
-                return parse_date(arg)
+                v = parse_date(arg)
+                if datatype == 'dateTime' and v.tzinfo is not None:
+                    reasons.add("'dateTime' datatype must not contain a timezone")
+
             elif datatype in ('time', 'time.tz'):
                 now = datetime.datetime.utcnow()
                 v = parse_date(arg, default=now)
                 if v.tzinfo is not None:
                     now += v.utcoffset()
-                assert all((
-                    v.day == now.day,
-                    v.month == now.month,
-                    v.year == now.year
-                ))
+                if not all((
+                        v.day == now.day,
+                        v.month == now.month,
+                        v.year == now.year)):
+                    reasons.add('%r datatype must not contain a date' % datatype)
                 if datatype == 'time' and v.tzinfo is not None:
-                    raise ValueError(
-                        '%r with datatype %r should not have timezone information.' % (
-                            name, datatype))
-                return datetime.time(v.hour, v.minute, v.second, v.microsecond, v.tzinfo)
+                    reasons.add('%r datatype must not have timezone information' % datatype)
+
             elif datatype == 'boolean':
-                if arg.lower() in ['true', 'yes', '1']:
-                    return True
-                elif arg.lower() in ['false', 'no', '0']:
-                    return False
-                raise ValueError('%r does not contain a valid boolean value: %r' % (name, arg))
+                valid = {'true', 'yes', '1', 'false', 'no', '0'}
+                if arg.lower() not in valid:
+                    reasons.add('%r datatype must be one of %s' % (datatype, ','.join(valid)))
+
             elif datatype == 'bin.base64':
-                return b64decode(arg)
+                b64decode(arg)
+
             elif datatype == 'bin.hex':
-                return unhexlify(arg)
+                unhexlify(arg)
+
             elif datatype == 'uri':
-                return urlunparse(urlparse(arg))
+                urlparse(arg)
+
             elif datatype == 'uuid':
-                assert re.match(
-                    r'^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$',
-                    arg,
-                    re.I
-                )
-                return UUID(arg)
+                if not re.match(
+                        r'^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$',
+                        arg, re.I):
+                    reasons.add('%r datatype must contain a valid UUID')
+
             else:
-                raise UPNPError("%s datatype of %r is unrecognised." % (name, datatype))
-        except Exception as exc:
-            if isinstance(exc, UPNPError):
-                raise
-            raise UPNPError("%s should be of type '%s'. %s" % (name, datatype, exc))
-        return v
+                reasons.add("%r datatype is unrecognised." % datatype)
+
+        except ValueError as exc:
+            reasons.add(str(exc))
+
+        return not bool(len(reasons)), reasons
 
     def __repr__(self):
         return "<Action '%s'>" % (self.name)

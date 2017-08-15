@@ -9,10 +9,10 @@ import xml.dom.minidom
 from uuid import UUID
 
 import mock
-
-import upnpclient as upnp
 import requests
 from requests.compat import basestring
+
+import upnpclient as upnp
 
 
 try:
@@ -24,6 +24,11 @@ try:
     import socketserver as sockserver
 except ImportError:
     import SocketServer as sockserver
+
+try:
+    from urllib.parse import ParseResult
+except ImportError:
+    from urlparse import ParseResult
 
 
 class TestUPnPClientWithServer(unittest.TestCase):
@@ -146,7 +151,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         mock_post.return_value = ret
         ret = self.server('GetSubnetMask')
-        self.assertEqual(ret, dict(NewSubnetMask="255.255.255.0"))
+        self.assertEqual(ret, dict(NewSubnetMask='255.255.255.0'))
 
     @mock.patch('requests.post')
     def test_callaction_noparam(self, mock_post):
@@ -173,27 +178,10 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(response['NewMaxAddress'], '10.0.0.254')
 
     @mock.patch('requests.post')
-    def test_callaction_param(self, mock_post):
+    def test_callaction_param(self, mock_post): 
         """
         Should be able to call an action with parameters and get the results.
         """
-        ret = mock.Mock()
-        ret.text = """
-        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-           <s:Body>
-              <u:SetDomainNameResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
-                 <NewDomainName>github.com</NewDomainName>
-              </u:SetDomainNameResponse>
-           </s:Body>
-        </s:Envelope>
-        """
-        mock_post.return_value = ret
-        action = self.server.find_action('SetDomainName')
-        response = action(NewDomainName='github.com')
-        self.assertEqual(response, dict(NewDomainName='github.com'))
-
-    @mock.patch('requests.post')
-    def test_callaction_param_kw(self, mock_post):
         ret = mock.Mock()
         ret.text = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -214,22 +202,24 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(response['NewEnabled'], True)
 
     def test_callaction_param_missing(self):
+        """
+        Calling an action without its parameters should raise a UPNPError.
+        """
         action = self.server.find_action('GetGenericPortMappingEntry')
         self.assertRaises(upnp.UPNPError, action)
 
     def test_callaction_param_invalid_ui2(self):
+        """
+        Calling an action with an invalid data type should raise a UPNPError.
+        """
         action = self.server.find_action('GetGenericPortMappingEntry')
-        self.assertRaises(upnp.UPNPError, action, NewPortMappingIndex='ZERO')
-
-    def test_callaction_param_invalid_allowedval(self):
-        action = self.server.find_action('GetGenericPortMappingEntry')
-        name = 'NewPortMappingIndex'
-        arg = 'WRONG'
-        statevar = action.argsdef_in[0][1]
-        self.assertRaises(upnp.UPNPError, action.validate_arg, name, arg, statevar)
+        self.assertRaises(upnp.ValidationError, action, NewPortMappingIndex='ZERO')
 
     @mock.patch('requests.post')
-    def test_callaction_param_mashall_out(self, mock_post):
+    def test_callaction_param_mashal_out(self, mock_post):
+        """
+        Values should be marshalled into the appropriate Python data types.
+        """
         ret = mock.Mock()
         ret.text = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -251,15 +241,21 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertIsInstance(response['NewEnabled'], bool)
 
     def test_callaction_nonexisting(self):
+        """
+        When a non-existent action is called, an InvalidActionException should be raised.
+        """
         service = self.server.services[0]
         try:
             service('NoSuchFunction')
-        except upnp.SOAPError as e:
-            self.assertEqual(e.args[0], 401)
-            self.assertEqual(e.args[1], 'Invalid action')
+            self.fail('An InvalidActionException should be raised.')
+        except upnp.InvalidActionException:
+            pass
 
     @mock.patch('requests.post')
-    def test_callaction_forbidden(self, mock_post):
+    def test_callaction_upnperror(self, mock_post):
+        """
+        UPNPErrors should be raised with the correct error code and description.
+        """
         exc = requests.exceptions.HTTPError(500)
         exc.response = mock.Mock()
         exc.response.text = """
@@ -282,15 +278,19 @@ class TestUPnPClientWithServer(unittest.TestCase):
         action = self.server.find_action('SetDefaultConnectionService')
         try:
             action(NewDefaultConnectionService='foo')
-        except upnp.SOAPError as e:
-            self.assertEqual(e.args[0], 401)
-            self.assertEqual(e.args[1], 'Invalid Action')
+        except upnp.soap.SOAPError as exc:
+            code, desc = exc.args
+            self.assertEqual(code, 401)
+            self.assertEqual(desc, 'Invalid Action')
 
 
 class TestUPnPClientNoServer(unittest.TestCase):
-    @mock.patch('upnpclient.ssdp.Server', return_value="test string")
+    @mock.patch('upnpclient.ssdp.Server', return_value='test string')
     @mock.patch('upnpclient.ssdp.scan')
     def test_discover(self, mock_scan, mock_server):
+        """
+        discover() should call netdisco's scan function and return a list of unique servers.
+        """
         url = 'http://www.example.com'
         entry = mock.Mock()
         entry.location = url
@@ -298,11 +298,14 @@ class TestUPnPClientNoServer(unittest.TestCase):
         ret = upnp.discover()
         mock_scan.assert_called()
         mock_server.assert_called_with(url)
-        self.assertEqual(ret, ["test string"])
+        self.assertEqual(ret, ['test string'])
 
     @mock.patch('upnpclient.ssdp.Server', side_effect=Exception)
     @mock.patch('upnpclient.ssdp.scan')
     def test_discover_exception(self, mock_scan, mock_server):
+        """
+        If unable to read a discovered server's root XML file, it should not appear in the list.
+        """
         url = 'http://www.example.com'
         entry = mock.Mock()
         entry.location = url
@@ -313,30 +316,52 @@ class TestUPnPClientNoServer(unittest.TestCase):
         self.assertEqual(ret, [])
 
     def test_validate_date(self):
-        v = upnp.Action.validate_arg("testarg", "2017-08-11", dict(datatype="date"))
-        self.assertIsInstance(v, datetime.date)
+        """
+        Should validate the 'date' type.
+        """
+        ret = upnp.Action.validate_arg('2017-08-11', dict(datatype='date'))
+        self.assertEqual(ret, (True, set()))
+
+    def test_validate_bad_date(self):
+        """
+        Bad 'date' type should fail validation.
+        """
+        valid, reasons = upnp.Action.validate_arg('2017-13-13', dict(datatype='date'))
+        print(reasons)
+        self.assertTrue(reasons)
+        self.assertFalse(valid)
+
+    def test_validate_date_with_time(self):
+        """
+        Should raise a ValidationError if a 'date' contains a time.
+        """
+        valid, reasons = upnp.Action.validate_arg('2017-13-13T12:34:56', dict(datatype='date'))
+        print(reasons)
+        self.assertTrue(reasons)
+        self.assertFalse(valid)
+
+    def test_marshal_date(self):
+        """
+        Should parse a valid date into a `datetime.date` object.
+        """
+        marshalled, val = upnp.marshal.marshal_value('date', '2017-08-11')
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, datetime.date)
         tests = dict(
             year=2017,
             month=8,
             day=11
         )
         for key, value in tests.items():
-            self.assertEqual(getattr(v, key), value)
+            self.assertEqual(getattr(val, key), value)
 
-    def test_validate_bad_date(self):
-        self.assertRaises(
-            upnp.UPNPError, upnp.Action.validate_arg, "testarg",
-            "2017-13-13", dict(datatype="date")
-        )
-
-    def test_validate_date_with_time(self):
-        self.assertRaises(
-            upnp.UPNPError, upnp.Action.validate_arg, "testarg",
-            "2017-08-11T12:34:56", dict(datatype="date"))
-
-    def test_validate_datetime(self):
-        v = upnp.Action.validate_arg("testarg", "2017-08-11T12:34:56", dict(datatype="dateTime"))
-        self.assertIsInstance(v, datetime.datetime)
+    def test_marshal_datetime(self):
+        """
+        Should parse and marshal a 'dateTime' into a timezone naive `datetime.datetime`.
+        """
+        marshalled, val = upnp.marshal.marshal_value('dateTime', '2017-08-11T12:34:56')
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, datetime.datetime)
         tests = dict(
             year=2017,
             month=8,
@@ -346,13 +371,16 @@ class TestUPnPClientNoServer(unittest.TestCase):
             second=56
         )
         for key, value in tests.items():
-            self.assertEqual(getattr(v, key), value)
-        self.assertEqual(v.utcoffset(), None)
+            self.assertEqual(getattr(val, key), value)
+        self.assertEqual(val.tzinfo, None)
 
-    def test_validate_datetime_tz(self):
-        v = upnp.Action.validate_arg(
-            "testarg", "2017-08-11T12:34:56+1:00", dict(datatype="dateTime.tz"))
-        self.assertIsInstance(v, datetime.datetime)
+    def test_marshal_datetime_tz(self):
+        """
+        Should parse and marshal a 'dateTime.tz' into a timezone aware `datetime.datetime`.
+        """
+        marshalled, val = upnp.marshal.marshal_value('dateTime.tz', '2017-08-11T12:34:56+1:00')
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, datetime.datetime)
         tests = dict(
             year=2017,
             month=8,
@@ -362,83 +390,162 @@ class TestUPnPClientNoServer(unittest.TestCase):
             second=56
         )
         for key, value in tests.items():
-            self.assertEqual(getattr(v, key), value)
-        self.assertEqual(v.utcoffset(), datetime.timedelta(hours=1))
-
-    def test_validate_time(self):
-        v = upnp.Action.validate_arg(
-            "testarg", "12:34:56", dict(datatype="time"))
-        self.assertIsInstance(v, datetime.time)
-        tests = dict(
-            hour=12,
-            minute=34,
-            second=56
-        )
-        for key, value in tests.items():
-            self.assertEqual(getattr(v, key), value)
+            self.assertEqual(getattr(val, key), value)
+        self.assertEqual(val.utcoffset(), datetime.timedelta(hours=1))
 
     def test_validate_time_illegal_tz(self):
-        self.assertRaises(upnp.UPNPError, upnp.Action.validate_arg,
-            "testarg", "12:34:56+1:00", dict(datatype="time"))
+        """
+        Should fail validation if 'time' contains a timezone.
+        """
+        valid, reasons = upnp.Action.validate_arg('12:34:56+1:00', dict(datatype='time'))
+        print(reasons)
+        self.assertTrue(reasons)
+        self.assertFalse(valid)
 
-    def test_validate_time_tz(self):
-        v = upnp.Action.validate_arg(
-            "testarg", "12:34:56+1:00", dict(datatype="time.tz"))
-        self.assertIsInstance(v, datetime.time)
+    def test_marshal_time(self):
+        """
+        Should parse a 'time' into a timezone naive `datetime.time`.
+        """
+        marshalled, val = upnp.marshal.marshal_value('time', '12:34:56')
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, datetime.time)
         tests = dict(
             hour=12,
             minute=34,
             second=56
         )
         for key, value in tests.items():
-            self.assertEqual(getattr(v, key), value)
-        self.assertEqual(v.utcoffset(), datetime.timedelta(hours=1))
+            self.assertEqual(getattr(val, key), value)
+        self.assertEqual(val.tzinfo, None)
 
-    def test_validate_bool(self):
-        valid_true = ("1", "true", "TRUE", "True", "yes", "YES", "Yes")
-        valid_false = ("0", "false", "FALSE", "False", "no", "NO", "No")
+    def test_marshal_time_tz(self):
+        """
+        Should parse a 'time.tz' into a timezone aware `datetime.time`.
+        """
+        marshalled, val = upnp.marshal.marshal_value('time.tz', '12:34:56+1:00')
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, datetime.time)
+        tests = dict(
+            hour=12,
+            minute=34,
+            second=56
+        )
+        for key, value in tests.items():
+            self.assertEqual(getattr(val, key), value)
+        self.assertEqual(val.utcoffset(), datetime.timedelta(hours=1))
+
+    def test_marshal_bool(self):
+        """
+        Should parse a 'boolean' into a `bool`.
+        """
+        valid_true = ('1', 'true', 'TRUE', 'True', 'yes', 'YES', 'Yes')
+        valid_false = ('0', 'false', 'FALSE', 'False', 'no', 'NO', 'No')
         tests = (
             list(zip(valid_true, [True]*len(valid_true))) +
             list(zip(valid_false, [False]*len(valid_false)))
         )
         for item, test in tests:
-            v = upnp.Action.validate_arg(
-                "testarg", item, dict(datatype="boolean"))
-            self.assertEqual(v, test)
+            marshalled, val = upnp.marshal.marshal_value('boolean', item)
+            self.assertTrue(marshalled)
+            self.assertEqual(val, test)
 
     def test_validate_bad_bool(self):
-        self.assertRaises(upnp.UPNPError, upnp.Action.validate_arg,
-            "testarg", "2", dict(datatype="boolean"))
+        """
+        Should raise a ValidationError if an invalid 'boolean' is provided.
+        """
+        valid, reasons = upnp.Action.validate_arg('2', dict(datatype='boolean'))
+        print(reasons)
+        self.assertTrue(reasons)
+        self.assertFalse(valid)
 
     def test_validate_base64(self):
-        bstring = "Hello, world!".encode("utf8")
-        v = upnp.Action.validate_arg(
-            "testarg", base64.b64encode(bstring), dict(datatype="bin.base64"))
-        self.assertEqual(v, bstring)
+        """
+        Should validate a 'bin.base64' value.
+        """
+        bstring = 'Hello, World!'.encode('utf8')
+        encoded = base64.b64encode(bstring)
+        valid, reasons = upnp.Action.validate_arg(encoded, dict(datatype='bin.base64'))
+        print(reasons)
+        self.assertFalse(reasons)
+        self.assertTrue(valid)
+
+    def test_marshal_base64(self):
+        """
+        Should simply leave the base64 string as it is.
+        """
+        bstring = 'Hello, World!'.encode('utf8')
+        encoded = base64.b64encode(bstring)
+        marshalled, val = upnp.marshal.marshal_value('bin.base64', encoded)
+        self.assertTrue(marshalled)
+        self.assertEqual(val, encoded)
 
     def test_validate_hex(self):
-        bstring = "Hello, world!".encode("ascii")
-        v = upnp.Action.validate_arg(
-            "testarg", binascii.hexlify(bstring), dict(datatype="bin.hex"))
-        self.assertEqual(v, bstring)
+        """
+        Should validate a 'bin.hex' value.
+        """
+        bstring = 'Hello, World!'.encode('ascii')
+        valid, reasons = upnp.Action.validate_arg(
+            binascii.hexlify(bstring), dict(datatype='bin.hex'))
+        print(reasons)
+        self.assertFalse(reasons)
+        self.assertTrue(valid)
+
+    def test_marshal_hex(self):
+        """
+        Should simply leave the hex string as it is.
+        """
+        bstring = 'Hello, World!'.encode('ascii')
+        encoded = binascii.hexlify(bstring)
+        marshalled, val = upnp.marshal.marshal_value('bin.hex', encoded)
+        self.assertTrue(marshalled)
+        self.assertEqual(val, encoded)
 
     def test_validate_uri(self):
-        uri = "https://media.giphy.com/media/22kxQ12cxyEww/giphy.gif?something=variable"
-        v = upnp.Action.validate_arg(
-            "testarg", uri, dict(datatype="uri"))
-        self.assertEqual(v, uri)
+        """
+        Should validate a 'uri' value.
+        """
+        uri = 'https://media.giphy.com/media/22kxQ12cxyEww/giphy.gif?something=variable'
+        valid, reasons = upnp.Action.validate_arg(uri, dict(datatype='uri'))
+        print(reasons)
+        self.assertFalse(reasons)
+        self.assertTrue(valid)
+
+    def test_marshal_uri(self):
+        """
+        Should parse a 'uri' value into a `ParseResult`.
+        """
+        uri = 'https://media.giphy.com/media/22kxQ12cxyEww/giphy.gif?something=variable'
+        marshalled, val = upnp.marshal.marshal_value('uri', uri)
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, ParseResult)
 
     def test_validate_uuid(self):
-        uuid = "bec6d681-a6af-4e7d-8b31-bcb78018c814"
-        v = upnp.Action.validate_arg(
-            "testarg", uuid, dict(datatype="uuid"))
-        self.assertEqual(v, UUID(uuid))
+        """
+        Should validate a 'uuid' value.
+        """
+        uuid = 'bec6d681-a6af-4e7d-8b31-bcb78018c814'
+        valid, reasons = upnp.Action.validate_arg(uuid, dict(datatype='uuid'))
+        print(reasons)
+        self.assertFalse(reasons)
+        self.assertTrue(valid)
 
     def test_validate_bad_uuid(self):
-        uuid = "bec-6d681a6af-4e7d-8b31-bcb78018c814"
-        self.assertRaises(
-            upnp.UPNPError, upnp.Action.validate_arg,
-            "testarg", uuid, dict(datatype="uuid"))
+        """
+        Should reject badly formatted 'uuid' values.
+        """
+        uuid = 'bec-6d681a6af-4e7d-8b31-bcb78018c814'
+        valid, reasons = upnp.Action.validate_arg(uuid, dict(datatype='uuid'))
+        self.assertTrue(reasons)
+        self.assertFalse(valid)
+
+    def test_marshal_uuid(self):
+        """
+        Should parse a 'uuid' into a `uuid.UUID`.
+        """
+        uuid = 'bec6d681-a6af-4e7d-8b31-bcb78018c814'
+        marshalled, val = upnp.marshal.marshal_value('uuid', uuid)
+        self.assertTrue(marshalled)
+        self.assertIsInstance(val, UUID)
 
 
 class EndPrematurelyException(Exception):
@@ -449,7 +556,7 @@ class TestSOAP(unittest.TestCase):
     @mock.patch('requests.post', side_effect=EndPrematurelyException)
     def test_call(self, mock_post):
         url = 'http://www.example.com'
-        soap = upnp.SOAP(url, 'test')
+        soap = upnp.soap.SOAP(url, 'test')
         self.assertRaises(EndPrematurelyException, soap.call, 'TestAction')
         mock_post.assert_called()
         args, _ = mock_post.call_args
@@ -463,7 +570,7 @@ class TestSOAP(unittest.TestCase):
         exc.response = mock.Mock()
         exc.response.text = 'this is not valid xml'
         mock_post.side_effect = exc
-        soap = upnp.SOAP('http://www.example.com', 'test')
+        soap = upnp.soap.SOAP('http://www.example.com', 'test')
         self.assertRaises(requests.exceptions.HTTPError, soap.call, 'TestAction')
 
     @mock.patch('requests.post')
@@ -486,7 +593,7 @@ class TestSOAP(unittest.TestCase):
         </s:Envelope>
         """.strip()
         mock_post.side_effect = exc
-        soap = upnp.SOAP('http://www.example.com', 'test')
+        soap = upnp.soap.SOAP('http://www.example.com', 'test')
         self.assertRaises(upnp.soap.SOAPProtocolError, soap.call, 'TestAction')
 
     @mock.patch('requests.post')
@@ -509,7 +616,7 @@ class TestSOAP(unittest.TestCase):
         </s:Envelope>
         """.strip()
         mock_post.side_effect = exc
-        soap = upnp.SOAP('http://www.example.com', 'test')
+        soap = upnp.soap.SOAP('http://www.example.com', 'test')
         self.assertRaises(upnp.soap.SOAPProtocolError, soap.call, 'TestAction')
 
     @mock.patch('requests.post')
@@ -525,7 +632,7 @@ class TestSOAP(unittest.TestCase):
         </s:Envelope>
         """
         mock_post.return_value = ret
-        soap = upnp.SOAP('http://www.example.com', 'test')
+        soap = upnp.soap.SOAP('http://www.example.com', 'test')
         self.assertRaises(upnp.soap.SOAPProtocolError, soap.call, 'TestAction')
 
 
@@ -538,8 +645,8 @@ class TestErrors(unittest.TestCase):
 
     def test_non_integer(self):
         try:
-            self.desc["a string"]
-            raise Exception("Should have raised KeyError.")
+            self.desc['a string']
+            raise Exception('Should have raised KeyError.')
         except KeyError as exc:
             self.assertEqual(str(exc), '"\'key\' must be an integer"')
 
