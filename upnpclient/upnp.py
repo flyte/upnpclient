@@ -11,9 +11,10 @@ from requests.compat import urljoin, urlparse
 from dateutil.parser import parse as parse_date
 from lxml import etree
 
-from .util import _getLogger, marshall_from
+from .util import _getLogger
 from .const import HTTP_TIMEOUT
 from .soap import SOAP
+from .marshal import marshal_value
 
 
 class UPNPError(Exception):
@@ -98,7 +99,7 @@ class Device(CallActionMixin):
         self.serial_number = findtext('device/serialNumber')
 
         self._url_base = findtext('URLBase')
-        if self._url_base == '':
+        if self._url_base is None:
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
             self._url_base = self.location
@@ -108,12 +109,16 @@ class Device(CallActionMixin):
         self._findall = partial(root.findall, namespaces=root.nsmap)
         self._read_services()
 
+    def __repr__(self):
+        return "<Device '%s'>" % (self.friendly_name)
+
     def _read_services(self):
         """
         Read the control XML file and populate self.services with a list of
         services in the form of Service class instances.
         """
-        # Build a flat list of all services offered by the UPNP server
+        # The double slash in the XPath is deliberate, as services can be
+        # listed in two places (Section 2.3 of uPNP device architecture v1.1)
         for node in self._findall('device//serviceList/service'):
             findtext = partial(node.findtext, namespaces=self._root_xml.nsmap)
             svc = Service(
@@ -138,9 +143,6 @@ class Device(CallActionMixin):
             action = service.find_action(action_name)
             if action is not None:
                 return action
-
-    def __repr__(self):
-        return "<Device '%s'>" % (self.friendly_name)
 
 
 class Service(CallActionMixin):
@@ -178,6 +180,9 @@ class Service(CallActionMixin):
 
         self._read_state_vars()
         self._read_actions()
+
+    def __repr__(self):
+        return "<Service service_id='%s'>" % (self.service_id)
 
     def _read_state_vars(self):
         for statevar_node in self._findall('serviceStateTable/stateVariable'):
@@ -218,9 +223,6 @@ class Service(CallActionMixin):
         except KeyError:
             pass
 
-    def __repr__(self):
-        return "<Service service_id='%s'>" % (self.service_id)
-
 
 class Action(object):
     def __init__(self, url, service_type, name, argsdef_in=None, argsdef_out=None):
@@ -234,6 +236,9 @@ class Action(object):
         self.argsdef_in = argsdef_in
         self.argsdef_out = argsdef_out
         self._log = _getLogger('Action')
+
+    def __repr__(self):
+        return "<Action '%s'>" % (self.name)
 
     def __call__(self, **kwargs):
         arg_reasons = {}
@@ -255,7 +260,8 @@ class Action(object):
         # Marshall the response to python data types
         out = {}
         for name, statevar in self.argsdef_out:
-            out[name] = marshall_from(statevar['datatype'], soap_response[name])
+            _, value = marshal_value(statevar['datatype'], soap_response[name])
+            out[name] = value
 
         return out
 
@@ -348,6 +354,3 @@ class Action(object):
             reasons.add(str(exc))
 
         return not bool(len(reasons)), reasons
-
-    def __repr__(self):
-        return "<Action '%s'>" % (self.name)
