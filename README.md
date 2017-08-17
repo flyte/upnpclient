@@ -102,8 +102,15 @@ Out[1]:
 and then to call the action using those arguments:
 
 ```python
-In [1]: d.WANIPConn1.AddPortMapping(NewRemoteHost='0.0.0.0', NewExternalPort=12345, NewProtocol='TCP', NewInternalPo
-...: rt=12345, NewInternalClient='192.168.1.10', NewEnabled='1', NewPortMappingDescription='Testing', NewLeaseDuration=10000)
+In [1]: d.WANIPConn1.AddPortMapping(
+   ...:     NewRemoteHost='0.0.0.0',
+   ...:     NewExternalPort=12345,
+   ...:     NewProtocol='TCP',
+   ...:     NewInternalPort=12345,
+   ...:     NewInternalClient='192.168.1.10',
+   ...:     NewEnabled='1',
+   ...:     NewPortMappingDescription='Testing',
+   ...:     NewLeaseDuration=10000)
 Out[1]: {}
 ```
 
