@@ -26,7 +26,7 @@ def required(fname):
 
 
 setup(
-    name="PyuPnPClient",
+    name="uPnPClient",
     version="0.0.1",
     packages=find_packages(
         exclude=[
@@ -52,10 +52,10 @@ setup(
     test_suite='pytest',
     zip_safe=False,
     # Metadata for upload to PyPI
-    author='FIXME',
-    author_email="FIXME",
+    author='Ellis Percival',
+    author_email='upnpclient@failcode.co.uk',
     description=fill(dedent("""\
-        FIXME
+        Python 2 and 3 library for accessing uPnP devices.
     """)),
     classifiers=[
         "Programming Language :: Python",
@@ -68,6 +68,6 @@ setup(
         "Topic :: System :: Networking"
     ],
     license="MIT",
-    keywords="",
-    url="https://github.com/FIXME"
+    keywords="upnp",
+    url="https://github.com/flyte/upnpclient"
 )

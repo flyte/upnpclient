@@ -74,7 +74,7 @@ class Device(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
-    def __init__(self, location, device_name=None):
+    def __init__(self, location, device_name=None, ignore_urlbase=False):
         """
         Create a new Device instance. `location` is an URL to an XML file
         describing the server's services.
@@ -82,6 +82,7 @@ class Device(CallActionMixin):
         self.location = location
         self.device_name = location if device_name is None else device_name
         self.services = []
+        self.service_map = {}
         self._log = _getLogger('Device')
 
         resp = requests.get(location, timeout=HTTP_TIMEOUT)
@@ -99,7 +100,7 @@ class Device(CallActionMixin):
         self.serial_number = findtext('device/serialNumber')
 
         self._url_base = findtext('URLBase')
-        if self._url_base is None:
+        if self._url_base is None or ignore_urlbase:
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
             self._url_base = self.location
@@ -111,6 +112,34 @@ class Device(CallActionMixin):
 
     def __repr__(self):
         return "<Device '%s'>" % (self.friendly_name)
+
+    def __getattr__(self, name):
+        """
+        Allow Services to be returned as members of the Device.
+        """
+        try:
+            return self.service_map[name]
+        except KeyError:
+            raise AttributeError('No attribute or service found with name %r.' % name)
+
+    def __getitem__(self, key):
+        """
+        Allow Services to be returned as dictionary keys of the Device.
+        """
+        return self.service_map[key]
+
+    def __dir__(self):
+        """
+        Add Service names to `dir(device)` output for use with tab-completion in repl.
+        """
+        return super(Device, self).__dir__() + list(self.service_map.keys())
+
+    @property
+    def actions(self):
+        actions = []
+        for service in self.services:
+            actions.extend(service.actions)
+        return actions
 
     def _read_services(self):
         """
@@ -131,6 +160,7 @@ class Device(CallActionMixin):
             )
             self._log.info('%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
             self.services.append(svc)
+            self.service_map[svc.name] = svc
 
     def find_action(self, action_name):
         """Find an action by name.
@@ -160,7 +190,7 @@ class Service(CallActionMixin):
         self._event_sub_url = event_sub_url
 
         self.actions = []
-        self._action_map = {}
+        self.action_map = {}
         self.statevars = {}
         self._log = _getLogger('Service')
 
@@ -183,6 +213,34 @@ class Service(CallActionMixin):
 
     def __repr__(self):
         return "<Service service_id='%s'>" % (self.service_id)
+
+    def __getattr__(self, name):
+        """
+        Allow Actions to be returned as members of the Service.
+        """
+        try:
+            return self.action_map[name]
+        except KeyError:
+            raise AttributeError('No attribute or action found with name %r.' % name)
+
+    def __getitem__(self, key):
+        """
+        Allow Actions to be returned as dictionary keys of the Service.
+        """
+        return self.action_map[key]
+
+    def __dir__(self):
+        """
+        Add Action names to `dir(service)` output for use with tab-completion in repl.
+        """
+        return super(Service, self).__dir__() + [a.name for a in self.actions]
+
+    @property
+    def name(self):
+        try:
+            return self.service_id[self.service_id.rindex(":")+1:]
+        except ValueError:
+            return self.service_id
 
     def _read_state_vars(self):
         for statevar_node in self._findall('serviceStateTable/stateVariable'):
@@ -214,12 +272,12 @@ class Service(CallActionMixin):
                 else:
                     argsdef_out.append((arg_name, arg_statevar))
             action = Action(action_url, self.service_type, name, argsdef_in, argsdef_out)
-            self._action_map[name] = action
+            self.action_map[name] = action
             self.actions.append(action)
 
     def find_action(self, action_name):
         try:
-            return self._action_map[action_name]
+            return self.action_map[action_name]
         except KeyError:
             pass
 

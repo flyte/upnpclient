@@ -7,6 +7,6 @@ def _getLogger(name):
     'No handlers could be found' message.
     """
     logger = logging.getLogger(name)
-    if not logging.root.handlers:
-        logger.disabled = 1
+    # if not logging.root.handlers:
+    #     logger.disabled = 1
     return logger
