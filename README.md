@@ -9,6 +9,12 @@ This library can be used to discover and consume uPnP devices and their services
 
 It's originally based on [Ferry Boender's work](https://github.com/fboender/pyupnpclient) and his blog post entitled [Exploring UPnP with Python](https://www.electricmonk.nl/log/2016/07/05/exploring-upnp-with-python/).
 
+### Installation
+
+```bash
+pip install upnpclient
+```
+
 ### Usage
 
 Typical usage:
