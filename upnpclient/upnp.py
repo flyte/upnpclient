@@ -88,7 +88,7 @@ class Device(CallActionMixin):
         resp = requests.get(location, timeout=HTTP_TIMEOUT)
         resp.raise_for_status()
 
-        root = etree.fromstring(resp.text)
+        root = etree.fromstring(resp.content)
         findtext = partial(root.findtext, namespaces=root.nsmap)
 
         self.device_type = findtext('device/deviceType')
@@ -203,7 +203,7 @@ class Service(CallActionMixin):
         self._log.info('Reading %s', url)
         resp = requests.get(url, timeout=HTTP_TIMEOUT)
         resp.raise_for_status()
-        self.scpd_xml = etree.fromstring(resp.text)
+        self.scpd_xml = etree.fromstring(resp.content)
         self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
         self._findtext = partial(self.scpd_xml.findtext, namespaces=self.scpd_xml.nsmap)
         self._findall = partial(self.scpd_xml.findall, namespaces=self.scpd_xml.nsmap)
