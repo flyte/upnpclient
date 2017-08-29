@@ -375,6 +375,7 @@ class Service(CallActionMixin):
         resp = requests.request('UNSUBSCRIBE', url, headers=headers)
         resp.raise_for_status()
 
+
 class Action(object):
     def __init__(self, url, service_type, name, argsdef_in=None, argsdef_out=None):
         if argsdef_in is None:

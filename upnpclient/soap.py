@@ -125,7 +125,7 @@ class SOAP(object):
                    ' \'%sResponse\'.' % (self.service_type, action_name))
             self._log.debug(msg + '\n' + etree.tostring(xml, pretty_print=True).decode('utf8'))
             raise SOAPProtocolError(msg)
-        
+
         # Sometimes devices return XML strings as their argument values without escaping them with
         # CDATA. This checks to see if the argument has been parsed as XML and un-parses it if so.
         ret = {}
