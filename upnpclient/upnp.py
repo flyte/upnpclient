@@ -40,6 +40,13 @@ class ValidationError(UPNPError):
         self.reasons = reasons
 
 
+class UnexpectedResponse(UPNPError):
+    """
+    Got a response we didn't expect.
+    """
+    pass
+
+
 class CallActionMixin(object):
     def __call__(self, action_name, **kwargs):
         """
@@ -248,11 +255,13 @@ class Service(CallActionMixin):
             findall = partial(statevar_node.findall, namespaces=statevar_node.nsmap)
             name = findtext('name')
             datatype = findtext('dataType')
+            send_events = statevar_node.attrib.get('sendEvents', 'yes').lower() == 'yes'
             allowed_values = set([e.text for e in findall('allowedValueList/allowedValue')])
             self.statevars[name] = dict(
                 name=name,
                 datatype=datatype,
-                allowed_values=allowed_values
+                allowed_values=allowed_values,
+                send_events=send_events
             )
 
     def _read_actions(self):
@@ -275,12 +284,96 @@ class Service(CallActionMixin):
             self.action_map[name] = action
             self.actions.append(action)
 
+    @staticmethod
+    def validate_subscription_response(resp):
+        lc_headers = {k.lower(): v for k, v in resp.headers.items()}
+        try:
+            sid = lc_headers['sid']
+        except KeyError:
+            raise UnexpectedResponse('Event subscription call returned without a "SID" header')
+        try:
+            timeout_str = lc_headers['timeout'].lower()
+        except KeyError:
+            raise UnexpectedResponse('Event subscription call returned without a "Timeout" header')
+        if not timeout_str.startswith('second-'):
+            raise UnexpectedResponse(
+                'Event subscription call returned an invalid timeout value: %r' % timeout_str)
+        timeout_str = timeout_str[len('Second-'):]
+        try:
+            timeout = None if timeout_str == 'infinite' else int(timeout_str)
+        except ValueError:
+            raise UnexpectedResponse(
+                'Event subscription call returned a timeout value which wasn\'t "infinite" or an in'
+                'teger')
+        return sid, timeout
+
+    @staticmethod
+    def validate_subscription_renewal_response(resp):
+        lc_headers = {k.lower(): v for k, v in resp.headers.items()}
+        try:
+            timeout_str = lc_headers['timeout'].lower()
+        except KeyError:
+            raise UnexpectedResponse('Event subscription call returned without a "Timeout" header')
+        if not timeout_str.startswith('second-'):
+            raise UnexpectedResponse(
+                'Event subscription call returned an invalid timeout value: %r' % timeout_str)
+        timeout_str = timeout_str[len('Second-'):]
+        try:
+            timeout = None if timeout_str == 'infinite' else int(timeout_str)
+        except ValueError:
+            raise UnexpectedResponse(
+                'Event subscription call returned a timeout value which wasn\'t "infinite" or an in'
+                'teger')
+        return timeout
+
     def find_action(self, action_name):
         try:
             return self.action_map[action_name]
         except KeyError:
             pass
 
+    def subscribe(self, callback_url, timeout=None):
+        """
+        Set up a subscription to the events offered by this service.
+        """
+        url = urljoin(self._url_base, self._event_sub_url)
+        headers = dict(
+            HOST=urlparse(url).netloc,
+            CALLBACK='<%s>' % callback_url,
+            NT='upnp:event'
+        )
+        if timeout is not None:
+            headers['TIMEOUT'] = 'Second-%s' % timeout
+        resp = requests.request('SUBSCRIBE', url, headers=headers)
+        resp.raise_for_status()
+        return Service.validate_subscription_response(resp)
+
+    def renew_subscription(self, sid, timeout=None):
+        """
+        Renews a previously configured subscription.
+        """
+        url = urljoin(self._url_base, self._event_sub_url)
+        headers = dict(
+            HOST=urlparse(url).netloc,
+            SID=sid
+        )
+        if timeout is not None:
+            headers['TIMEOUT'] = 'Second-%s' % timeout
+        resp = requests.request('SUBSCRIBE', url, headers=headers)
+        resp.raise_for_status()
+        return Service.validate_subscription_renewal_response(resp)
+
+    def cancel_subscription(self, sid):
+        """
+        Unsubscribes from a previously configured subscription.
+        """
+        url = urljoin(self._url_base, self._event_sub_url)
+        headers = dict(
+            HOST=urlparse(url).netloc,
+            SID=sid
+        )
+        resp = requests.request('UNSUBSCRIBE', url, headers=headers)
+        resp.raise_for_status()
 
 class Action(object):
     def __init__(self, url, service_type, name, argsdef_in=None, argsdef_out=None):
