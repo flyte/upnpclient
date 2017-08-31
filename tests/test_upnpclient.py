@@ -31,6 +31,10 @@ except ImportError:
     from urlparse import ParseResult
 
 
+class EndPrematurelyException(Exception):
+    pass
+
+
 class TestUPnPClientWithServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -283,8 +287,62 @@ class TestUPnPClientWithServer(unittest.TestCase):
             self.assertEqual(code, 401)
             self.assertEqual(desc, 'Invalid Action')
 
+    @mock.patch('requests.Session.send', side_effect=EndPrematurelyException)
+    def test_subscribe(self, mock_send):
+        """
+        Should perform a well formed HTTP SUBSCRIBE request.
+        """
+        cb_url = 'http://127.0.0.1/'
+        try:
+            self.server.layer3f.subscribe(cb_url, timeout=123)
+        except EndPrematurelyException:
+            pass
+        req = mock_send.call_args[0][0]
+        self.assertEqual(req.method, 'SUBSCRIBE')
+        self.assertEqual(req.url, 'http://127.0.0.1:%s/upnp/event/layer3f' % self.httpd_port)
+        self.assertEqual(req.body, None)
+        self.assertEqual(req.headers['NT'], 'upnp:event')
+        self.assertEqual(req.headers['CALLBACK'], '<%s>' % cb_url)
+        self.assertEqual(req.headers['HOST'], '127.0.0.1:%s' % self.httpd_port)
+        self.assertEqual(req.headers['TIMEOUT'], 'Second-123')
 
-class TestUPnPClientNoServer(unittest.TestCase):
+    @mock.patch('requests.Session.send', side_effect=EndPrematurelyException)
+    def test_renew_subscription(self, mock_send):
+        """
+        Should perform a well formed HTTP SUBSCRIBE request on sub renewal.
+        """
+        sid = 'abcdef'
+        try:
+            self.server.layer3f.renew_subscription(sid, timeout=123)
+        except EndPrematurelyException:
+            pass
+        req = mock_send.call_args[0][0]
+        self.assertEqual(req.method, 'SUBSCRIBE')
+        self.assertEqual(req.url, 'http://127.0.0.1:%s/upnp/event/layer3f' % self.httpd_port)
+        self.assertEqual(req.body, None)
+        self.assertEqual(req.headers['HOST'], '127.0.0.1:%s' % self.httpd_port)
+        self.assertEqual(req.headers['SID'], sid)
+        self.assertEqual(req.headers['TIMEOUT'], 'Second-123')
+
+    @mock.patch('requests.Session.send', side_effect=EndPrematurelyException)
+    def test_cancel_subscription(self, mock_send):
+        """
+        Should perform a well formed HTTP UNSUBSCRIBE request on sub cancellation.
+        """
+        sid = 'abcdef'
+        try:
+            self.server.layer3f.cancel_subscription(sid)
+        except EndPrematurelyException:
+            pass
+        req = mock_send.call_args[0][0]
+        self.assertEqual(req.method, 'UNSUBSCRIBE')
+        self.assertEqual(req.url, 'http://127.0.0.1:%s/upnp/event/layer3f' % self.httpd_port)
+        self.assertEqual(req.body, None)
+        self.assertEqual(req.headers['HOST'], '127.0.0.1:%s' % self.httpd_port)
+        self.assertEqual(req.headers['SID'], sid)
+
+
+class TestUPnPClient(unittest.TestCase):
     @mock.patch('upnpclient.ssdp.Device', return_value='test string')
     @mock.patch('upnpclient.ssdp.scan')
     def test_discover(self, mock_scan, mock_server):
@@ -547,9 +605,138 @@ class TestUPnPClientNoServer(unittest.TestCase):
         self.assertTrue(marshalled)
         self.assertIsInstance(val, UUID)
 
+    def test_validate_subscription_response(self):
+        """
+        Should validate the sub response and return sid and timeout.
+        """
+        sid = 'abcdef'
+        timeout = 123
+        resp = mock.Mock()
+        resp.headers = dict(SID=sid, Timeout='Second-%s' % timeout)
+        rsid, rtimeout = upnp.Service.validate_subscription_response(resp)
+        self.assertEqual(rsid, sid)
+        self.assertEqual(rtimeout, timeout)
 
-class EndPrematurelyException(Exception):
-    pass
+    def test_validate_subscription_response_caps(self):
+        """
+        Should validate the sub response and return sid and timeout regardless of capitalisation.
+        """
+        sid = 'abcdef'
+        timeout = 123
+        resp = mock.Mock()
+        resp.headers = dict(sid=sid, TIMEOUT='SeCoNd-%s' % timeout)
+        rsid, rtimeout = upnp.Service.validate_subscription_response(resp)
+        self.assertEqual(rsid, sid)
+        self.assertEqual(rtimeout, timeout)
+
+    def test_validate_subscription_response_infinite(self):
+        """
+        Should validate the sub response and return None as the timeout.
+        """
+        sid = 'abcdef'
+        timeout = 'infinite'
+        resp = mock.Mock()
+        resp.headers = dict(SID=sid, Timeout='Second-%s' % timeout)
+        rsid, rtimeout = upnp.Service.validate_subscription_response(resp)
+        self.assertEqual(rsid, sid)
+        self.assertEqual(rtimeout, None)
+
+    def test_validate_subscription_response_no_timeout(self):
+        """
+        Should raise UnexpectedResponse if timeout is missing.
+        """
+        resp = mock.Mock()
+        resp.headers = dict(SID='abcdef')
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_response,
+            resp)
+
+    def test_validate_subscription_response_no_sid(self):
+        """
+        Should raise UnexpectedResponse if sid is missing.
+        """
+        resp = mock.Mock()
+        resp.headers = dict(Timeout='Second-123')
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_response,
+            resp)
+
+    def test_validate_subscription_response_bad_timeout(self):
+        """
+        Should raise UnexpectedResponse if timeout is in the wrong format.
+        """
+        resp = mock.Mock()
+        resp.headers = dict(SID='abcdef', Timeout='123')
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_response,
+            resp)
+
+    def test_validate_subscription_response_bad_timeout2(self):
+        """
+        Should raise UnexpectedResponse if timeout is not an int/infinite.
+        """
+        resp = mock.Mock()
+        resp.headers = dict(SID='abcdef', Timeout='Second-abc')
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_response,
+            resp)
+
+    def test_validate_subscription_renewal_response(self):
+        """
+        Should validate the sub renewal response and return the timeout.
+        """
+        timeout = 123
+        resp = mock.Mock()
+        resp.headers = dict(Timeout='Second-%s' % timeout)
+        rtimeout = upnp.Service.validate_subscription_renewal_response(resp)
+        self.assertEqual(rtimeout, timeout)
+
+    def test_validate_subscription_renewal_response_infinite(self):
+        """
+        Should validate the sub renewal response and return None as the timeout.
+        """
+        timeout = 'infinite'
+        resp = mock.Mock()
+        resp.headers = dict(Timeout='Second-%s' % timeout)
+        rtimeout = upnp.Service.validate_subscription_renewal_response(resp)
+        self.assertEqual(rtimeout, None)
+
+    def test_validate_subscription_renewal_response_no_timeout(self):
+        """
+        Should raise UnexpectedResponse if timeout is missing.
+        """
+        resp = mock.Mock()
+        resp.headers = dict()
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_renewal_response,
+            resp)
+
+    def test_validate_subscription_renewal_response_bad_timeout(self):
+        """
+        Should raise UnexpectedResponse if timeout is in the wrong format.
+        """
+        resp = mock.Mock()
+        resp.headers = dict(Timeout='123')
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_renewal_response,
+            resp)
+
+    def test_validate_subscription_renewal_response_bad_timeout2(self):
+        """
+        Should raise UnexpectedResponse if timeout is not an int/infinite.
+        """
+        resp = mock.Mock()
+        resp.headers = dict(Timeout='Second-abc')
+        self.assertRaises(
+            upnp.UnexpectedResponse,
+            upnp.Service.validate_subscription_renewal_response,
+            resp)
 
 
 class TestSOAP(unittest.TestCase):
