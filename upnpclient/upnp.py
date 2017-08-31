@@ -189,7 +189,7 @@ class Service(CallActionMixin):
     parses the actions and state variables. It can then be used to call
     actions.
     """
-    def __init__(self, device, url_base, service_type, service_id, 
+    def __init__(self, device, url_base, service_type, service_id,
                  control_url, scpd_url, event_sub_url):
         self.device = device
         self._url_base = url_base
