@@ -1,3 +1,9 @@
+OUT OF DATE
+===========
+These examples are out of date. They will be updated in time, but please refer to the Readme in the main directory for now.
+
+...
+
 These are examples of how to use upnpclient. Since these examples are dependant
 on actual physical devices on your network, they will probably not work for
 you. 
