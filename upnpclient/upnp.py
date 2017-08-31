@@ -158,6 +158,7 @@ class Device(CallActionMixin):
         for node in self._findall('device//serviceList/service'):
             findtext = partial(node.findtext, namespaces=self._root_xml.nsmap)
             svc = Service(
+                self,
                 self._url_base,
                 findtext('serviceType'),
                 findtext('serviceId'),
@@ -188,7 +189,8 @@ class Service(CallActionMixin):
     parses the actions and state variables. It can then be used to call
     actions.
     """
-    def __init__(self, url_base, service_type, service_id, control_url, scpd_url, event_sub_url):
+    def __init__(self, device, url_base, service_type, service_id, control_url, scpd_url, event_sub_url):
+        self.device = device
         self._url_base = url_base
         self.service_type = service_type
         self.service_id = service_id
@@ -280,7 +282,7 @@ class Service(CallActionMixin):
                     argsdef_in.append((arg_name, arg_statevar))
                 else:
                     argsdef_out.append((arg_name, arg_statevar))
-            action = Action(action_url, self.service_type, name, argsdef_in, argsdef_out)
+            action = Action(self, action_url, self.service_type, name, argsdef_in, argsdef_out)
             self.action_map[name] = action
             self.actions.append(action)
 
@@ -377,11 +379,12 @@ class Service(CallActionMixin):
 
 
 class Action(object):
-    def __init__(self, url, service_type, name, argsdef_in=None, argsdef_out=None):
+    def __init__(self, service, url, service_type, name, argsdef_in=None, argsdef_out=None):
         if argsdef_in is None:
             argsdef_in = {}
         if argsdef_out is None:
             argsdef_out = {}
+        self.service = service
         self.url = url
         self.service_type = service_type
         self.name = name
