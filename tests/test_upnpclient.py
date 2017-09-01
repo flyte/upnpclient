@@ -144,7 +144,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Should be able to call the server with the name of an action.
         """
         ret = mock.Mock()
-        ret.text = """
+        ret.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
@@ -163,7 +163,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Should be able to call an action with no params and get the results.
         """
         ret = mock.Mock()
-        ret.text = """
+        ret.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:GetAddressRangeResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
@@ -187,7 +187,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Should be able to call an action with parameters and get the results.
         """
         ret = mock.Mock()
-        ret.text = """
+        ret.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:GetGenericPortMappingEntryResponse xmlns:u="urn:schemas-upnp-org:service:Layer3Forwarding:1">
@@ -225,7 +225,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Values should be marshalled into the appropriate Python data types.
         """
         ret = mock.Mock()
-        ret.text = """
+        ret.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:GetGenericPortMappingEntryResponse xmlns:u="urn:schemas-upnp-org:service:Layer3Forwarding:1">
@@ -262,7 +262,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         exc = requests.exceptions.HTTPError(500)
         exc.response = mock.Mock()
-        exc.response.text = """
+        exc.response.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
           <s:Body>
             <s:Fault>
@@ -755,7 +755,7 @@ class TestSOAP(unittest.TestCase):
     def test_non_xml_error(self, mock_post):
         exc = requests.exceptions.HTTPError()
         exc.response = mock.Mock()
-        exc.response.text = 'this is not valid xml'
+        exc.response.content = 'this is not valid xml'
         mock_post.side_effect = exc
         soap = upnp.soap.SOAP('http://www.example.com', 'test')
         self.assertRaises(requests.exceptions.HTTPError, soap.call, 'TestAction')
@@ -764,7 +764,7 @@ class TestSOAP(unittest.TestCase):
     def test_missing_error_code_element(self, mock_post):
         exc = requests.exceptions.HTTPError()
         exc.response = mock.Mock()
-        exc.response.text = """
+        exc.response.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
           <s:Body>
             <s:Fault>
@@ -787,7 +787,7 @@ class TestSOAP(unittest.TestCase):
     def test_missing_error_description_element(self, mock_post):
         exc = requests.exceptions.HTTPError()
         exc.response = mock.Mock()
-        exc.response.text = """
+        exc.response.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
           <s:Body>
             <s:Fault>
@@ -809,7 +809,7 @@ class TestSOAP(unittest.TestCase):
     @mock.patch('requests.post')
     def test_missing_response_element(self, mock_post):
         ret = mock.Mock()
-        ret.text = """
+        ret.content = """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
            <s:Body>
               <u:SomeOtherElement xmlns:u="urn:schemas-upnp-org:service:Layer3Forwarding:1">
