@@ -102,12 +102,12 @@ class SOAP(object):
             # If the body of the error response contains XML then it should be a UPnP error,
             # otherwise reraise the HTTPError.
             try:
-                err_xml = etree.fromstring(exc.response.text)
+                err_xml = etree.fromstring(exc.response.content)
             except etree.XMLSyntaxError:
                 raise exc
             raise SOAPError(*self._extract_upnperror(err_xml))
 
-        xml_str = resp.text.strip()
+        xml_str = resp.content.strip()
         try:
             xml = etree.fromstring(xml_str)
         except etree.XMLSyntaxError:
