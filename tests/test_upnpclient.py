@@ -378,24 +378,6 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(''.join(x.text for x in args), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class TestUPnPClient(unittest.TestCase):
     @mock.patch('upnpclient.ssdp.Device', return_value='test string')
     @mock.patch('upnpclient.ssdp.scan')
