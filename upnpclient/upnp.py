@@ -4,6 +4,7 @@ from decimal import Decimal
 from base64 import b64decode
 from binascii import unhexlify
 from functools import partial
+from collections import OrderedDict
 
 import six
 import requests
@@ -382,9 +383,9 @@ class Service(CallActionMixin):
 class Action(object):
     def __init__(self, service, url, service_type, name, argsdef_in=None, argsdef_out=None):
         if argsdef_in is None:
-            argsdef_in = {}
+            argsdef_in = []
         if argsdef_out is None:
-            argsdef_out = {}
+            argsdef_out = []
         self.service = service
         self.url = url
         self.service_type = service_type
@@ -398,6 +399,7 @@ class Action(object):
 
     def __call__(self, **kwargs):
         arg_reasons = {}
+        call_kwargs = OrderedDict()
         # Validate arguments using the SCPD stateVariable definitions
         for name, statevar in self.argsdef_in:
             if name not in kwargs:
@@ -405,13 +407,15 @@ class Action(object):
             valid, reasons = self.validate_arg(kwargs[name], statevar)
             if not valid:
                 arg_reasons[name] = reasons
+            # Preserve the order of call args, as listed in SCPD XML spec
+            call_kwargs[name] = kwargs[name]
 
         if arg_reasons:
             raise ValidationError(arg_reasons)
 
         # Make the actual call
         soap_client = SOAP(self.url, self.service_type)
-        soap_response = soap_client.call(self.name, kwargs)
+        soap_response = soap_client.call(self.name, call_kwargs)
 
         # Marshall the response to python data types
         out = {}
