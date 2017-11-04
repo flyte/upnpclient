@@ -341,6 +341,60 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(req.headers['HOST'], '127.0.0.1:%s' % self.httpd_port)
         self.assertEqual(req.headers['SID'], sid)
 
+    @mock.patch('requests.Session.send', side_effect=EndPrematurelyException)
+    def test_args_order(self, mock_send):
+        """
+        Arguments should be called in the order they're listed in the specification.
+        This test is non-deterministic, as there's a chance that the arguments will
+        naturally end up in the correct order. However, I've deemed this pretty much
+        OK because the chance of that happening is one in four hundred and three
+        septillion, two hundred and ninety one sextillion, four hundred and sixty
+        one quintillion, one hundred and twenty six quadrillion, six hundred and five
+        trillion, six hundred and thirty five billion, five hundred and eighty four
+        million (403,291,461,126,605,635,584,000,000). Good luck! :)
+        """
+        alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        args_in = list(alphabet)
+        try:
+            self.server.lanhcm.InArgsTest(**{x: 'test' for x in args_in})
+        except EndPrematurelyException:
+            pass
+        req = mock_send.call_args[0][0]
+        tree = etree.fromstring(req.body)
+        nsmap = tree.nsmap.copy()
+        nsmap.update({'m': 'urn:schemas-upnp-org:service:LANHostConfigManagement:1'})
+        args = [x.tag for x in tree.xpath(
+            'SOAP-ENV:Body/m:InArgsTest', namespaces=nsmap)[0].getchildren()]
+        self.assertEqual(''.join(args), alphabet)
+
+    def test_args_order_read_ok(self):
+        """
+        Make sure that the arguments in the XML are read in order by lxml.
+        """
+        xpath = (
+            's:actionList/s:action/s:name[text()="InArgsTest"]/../s:argumentList/s:argument/s:name')
+        xml = self.server.service_map['lanhcm'].scpd_xml
+        args = xml.xpath(xpath, namespaces={'s': xml.nsmap[None]})
+        self.assertEqual(''.join(x.text for x in args), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class TestUPnPClient(unittest.TestCase):
     @mock.patch('upnpclient.ssdp.Device', return_value='test string')
