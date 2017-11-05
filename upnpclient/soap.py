@@ -7,7 +7,7 @@ from .util import _getLogger
 
 
 SOAP_TIMEOUT = 30
-NS_SOAP_ENV = 'http://schemas.xmlsoap.org/soap/envelope'
+NS_SOAP_ENV = 'http://schemas.xmlsoap.org/soap/envelope/'
 NS_UPNP_ERR = 'urn:schemas-upnp-org:control-1-0'
 ENCODING_STYLE = 'http://schemas.xmlsoap.org/soap/encoding/'
 ENCODING = 'utf-8'
