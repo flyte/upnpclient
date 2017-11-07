@@ -82,7 +82,7 @@ class Device(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
-    def __init__(self, location, device_name=None, ignore_urlbase=False):
+    def __init__(self, location, device_name=None, ignore_urlbase=False, headers=None):
         """
         Create a new Device instance. `location` is an URL to an XML file
         describing the server's services.
@@ -93,7 +93,7 @@ class Device(CallActionMixin):
         self.service_map = {}
         self._log = _getLogger('Device')
 
-        resp = requests.get(location, timeout=HTTP_TIMEOUT)
+        resp = requests.get(location, timeout=HTTP_TIMEOUT, headers=headers)
         resp.raise_for_status()
 
         root = etree.fromstring(resp.content)
@@ -167,7 +167,7 @@ class Device(CallActionMixin):
                 findtext('SCPDURL'),
                 findtext('eventSubURL')
             )
-            self._log.info('%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
+            self._log.debug('%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
             self.services.append(svc)
             self.service_map[svc.name] = svc
 
@@ -211,7 +211,7 @@ class Service(CallActionMixin):
         self._log.debug('%s eventSubURL: %s', self.service_id, self._event_sub_url)
 
         url = urljoin(self._url_base, self.scpd_url)
-        self._log.info('Reading %s', url)
+        self._log.debug('Reading %s', url)
         resp = requests.get(url, timeout=HTTP_TIMEOUT)
         resp.raise_for_status()
         self.scpd_xml = etree.fromstring(resp.content)
@@ -400,6 +400,7 @@ class Action(object):
     def __call__(self, **kwargs):
         arg_reasons = {}
         call_kwargs = OrderedDict()
+
         # Validate arguments using the SCPD stateVariable definitions
         for name, statevar in self.argsdef_in:
             if name not in kwargs:
@@ -414,8 +415,10 @@ class Action(object):
             raise ValidationError(arg_reasons)
 
         # Make the actual call
+        self._log.debug(">> %s (%s)", self.name, call_kwargs)
         soap_client = SOAP(self.url, self.service_type)
         soap_response = soap_client.call(self.name, call_kwargs)
+        self._log.debug("<< %s (%s): %s", self.name, call_kwargs, soap_response)
 
         # Marshall the response to python data types
         out = {}
