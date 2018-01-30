@@ -102,10 +102,12 @@ class Device(CallActionMixin):
         self.device_type = findtext('device/deviceType')
         self.friendly_name = findtext('device/friendlyName')
         self.manufacturer = findtext('device/manufacturer')
+        self.manufacturer_url = findtext('device/manufacturerURL')
         self.model_description = findtext('device/modelDescription')
         self.model_name = findtext('device/modelName')
         self.model_number = findtext('device/modelNumber')
         self.serial_number = findtext('device/serialNumber')
+        self.udn = findtext('device/UDN')
 
         self._url_base = findtext('URLBase')
         if self._url_base is None or ignore_urlbase:
