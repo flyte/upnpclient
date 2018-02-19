@@ -417,7 +417,12 @@ class Action(object):
 
         # Make the actual call
         soap_client = SOAP(self.url, self.service_type)
-        soap_response = soap_client.call(self.name, call_kwargs)
+
+        # pass auth object to call if it is set
+        if 'auth' in kwargs:
+            soap_response = soap_client.call(self.name, call_kwargs, kwargs['auth'])
+        else:
+            soap_response = soap_client.call(self.name, call_kwargs)
 
         # Marshall the response to python data types
         out = {}

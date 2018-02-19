@@ -71,7 +71,7 @@ class SOAP(object):
         xml_str = re.sub(r'<\?xml.*?\?>', '', xml_str, flags=re.I)
         return xml_declaration + xml_str
 
-    def call(self, action_name, arg_in=None):
+    def call(self, action_name, arg_in=None, http_auth=None):
         """
         Construct the XML and make the call to the device. Parse the response values into a dict.
         """
@@ -96,7 +96,7 @@ class SOAP(object):
         }
 
         try:
-            resp = requests.post(self.url, body, headers=headers, timeout=SOAP_TIMEOUT)
+            resp = requests.post(self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth)
             resp.raise_for_status()
         except requests.exceptions.HTTPError as exc:
             # If the body of the error response contains XML then it should be a UPnP error,
