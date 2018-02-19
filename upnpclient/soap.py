@@ -96,7 +96,8 @@ class SOAP(object):
         }
 
         try:
-            resp = requests.post(self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth)
+            resp = requests.post(self.url, body, headers=headers,
+                                 timeout=SOAP_TIMEOUT, auth=http_auth)
             resp.raise_for_status()
         except requests.exceptions.HTTPError as exc:
             # If the body of the error response contains XML then it should be a UPnP error,
