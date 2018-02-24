@@ -27,7 +27,7 @@ def required(fname):
 
 setup(
     name="uPnPClient",
-    version="0.0.7",
+    version="0.0.8",
     packages=find_packages(
         exclude=[
             "*.tests",
