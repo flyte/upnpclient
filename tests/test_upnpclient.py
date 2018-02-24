@@ -152,6 +152,85 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertIn('auth', kwargs)
         self.assertEqual(kwargs['auth'], call_auth)
 
+    @mock.patch('requests.post')
+    def test_device_headers(self, mock_post):
+        headers = dict(test='device')
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_headers=headers)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask')
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['headers']['test'], 'device')
+
+    @mock.patch('requests.post')
+    def test_device_headers_call_override(self, mock_post):
+        dev_headers = dict(test='device')
+        call_headers = dict(test='call')
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_headers=dev_headers)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask', http_headers=call_headers)
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['headers']['test'], 'call')
+
+    @mock.patch('requests.post')
+    def test_device_headers_call_override_none(self, mock_post):
+        dev_headers = dict(test='device')
+        call_headers = None
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_headers=dev_headers)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask', http_headers=call_headers)
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['headers']['test'], 'device')
+
+    @mock.patch('requests.post')
+    def test_device_headers_none_override(self, mock_post):
+        dev_headers = None
+        call_headers = dict(test='call')
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_headers=dev_headers)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask', http_headers=call_headers)
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['headers']['test'], 'call')
+
     def test_device_props(self):
         """
         `Device` instance should contain the properties from the XML.
