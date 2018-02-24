@@ -96,7 +96,7 @@ class Device(CallActionMixin):
         self._log = _getLogger('Device')
 
         self.http_auth = http_auth
-        self.http_headers = headers
+        self.http_headers = http_headers
 
         resp = requests.get(
           location,
@@ -179,7 +179,8 @@ class Device(CallActionMixin):
                 findtext('SCPDURL'),
                 findtext('eventSubURL')
             )
-            self._log.debug('%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
+            self._log.debug(
+                '%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
             self.services.append(svc)
             self.service_map[svc.name] = svc
 
@@ -414,7 +415,7 @@ class Action(object):
     def __repr__(self):
         return "<Action '%s'>" % (self.name)
 
-    def __call__(self, http_auth=None, **kwargs):
+    def __call__(self, http_auth=None, http_headers=None, **kwargs):
         arg_reasons = {}
         call_kwargs = OrderedDict()
 
@@ -438,7 +439,8 @@ class Action(object):
         soap_response = soap_client.call(
           self.name,
           call_kwargs,
-          http_auth or self.service.device.http_auth
+          http_auth or self.service.device.http_auth,
+          http_headers or self.service.device.http_headers
         )
         self._log.debug("<< %s (%s): %s", self.name, call_kwargs, soap_response)
 
