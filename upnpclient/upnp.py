@@ -82,7 +82,9 @@ class Device(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
-    def __init__(self, location, device_name=None, ignore_urlbase=False, headers=None):
+    def __init__(
+            self, location, device_name=None, ignore_urlbase=False,
+            http_auth=None, http_headers=None):
         """
         Create a new Device instance. `location` is an URL to an XML file
         describing the server's services.
@@ -93,7 +95,15 @@ class Device(CallActionMixin):
         self.service_map = {}
         self._log = _getLogger('Device')
 
-        resp = requests.get(location, timeout=HTTP_TIMEOUT, headers=headers)
+        self.http_auth = http_auth
+        self.http_headers = headers
+
+        resp = requests.get(
+          location,
+          timeout=HTTP_TIMEOUT,
+          auth=self.http_auth,
+          headers=self.http_headers
+        )
         resp.raise_for_status()
 
         root = etree.fromstring(resp.content)
@@ -102,10 +112,12 @@ class Device(CallActionMixin):
         self.device_type = findtext('device/deviceType')
         self.friendly_name = findtext('device/friendlyName')
         self.manufacturer = findtext('device/manufacturer')
+        self.manufacturer_url = findtext('device/manufacturerURL')
         self.model_description = findtext('device/modelDescription')
         self.model_name = findtext('device/modelName')
         self.model_number = findtext('device/modelNumber')
         self.serial_number = findtext('device/serialNumber')
+        self.udn = findtext('device/UDN')
 
         self._url_base = findtext('URLBase')
         if self._url_base is None or ignore_urlbase:
@@ -212,7 +224,12 @@ class Service(CallActionMixin):
 
         url = urljoin(self._url_base, self.scpd_url)
         self._log.debug('Reading %s', url)
-        resp = requests.get(url, timeout=HTTP_TIMEOUT)
+        resp = requests.get(
+          url,
+          timeout=HTTP_TIMEOUT,
+          auth=self.device.http_auth,
+          headers=self.device.http_headers
+        )
         resp.raise_for_status()
         self.scpd_xml = etree.fromstring(resp.content)
         self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
@@ -348,7 +365,7 @@ class Service(CallActionMixin):
         )
         if timeout is not None:
             headers['TIMEOUT'] = 'Second-%s' % timeout
-        resp = requests.request('SUBSCRIBE', url, headers=headers)
+        resp = requests.request('SUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
         return Service.validate_subscription_response(resp)
 
@@ -363,7 +380,7 @@ class Service(CallActionMixin):
         )
         if timeout is not None:
             headers['TIMEOUT'] = 'Second-%s' % timeout
-        resp = requests.request('SUBSCRIBE', url, headers=headers)
+        resp = requests.request('SUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
         return Service.validate_subscription_renewal_response(resp)
 
@@ -376,7 +393,7 @@ class Service(CallActionMixin):
             HOST=urlparse(url).netloc,
             SID=sid
         )
-        resp = requests.request('UNSUBSCRIBE', url, headers=headers)
+        resp = requests.request('UNSUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
 
 
@@ -397,7 +414,7 @@ class Action(object):
     def __repr__(self):
         return "<Action '%s'>" % (self.name)
 
-    def __call__(self, **kwargs):
+    def __call__(self, http_auth=None, **kwargs):
         arg_reasons = {}
         call_kwargs = OrderedDict()
 
@@ -417,7 +434,12 @@ class Action(object):
         # Make the actual call
         self._log.debug(">> %s (%s)", self.name, call_kwargs)
         soap_client = SOAP(self.url, self.service_type)
-        soap_response = soap_client.call(self.name, call_kwargs)
+
+        soap_response = soap_client.call(
+          self.name,
+          call_kwargs,
+          http_auth or self.service.device.http_auth
+        )
         self._log.debug("<< %s (%s): %s", self.name, call_kwargs, soap_response)
 
         # Marshall the response to python data types

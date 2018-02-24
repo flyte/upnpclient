@@ -69,6 +69,89 @@ class TestUPnPClientWithServer(unittest.TestCase):
     def setUp(self):
         self.server = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port)
 
+    @mock.patch('requests.post')
+    def test_device_auth(self, mock_post):
+        auth = ('myuser', 'mypassword')
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_auth=auth)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask')
+        _, kwargs = mock_post.call_args
+        self.assertIn('auth', kwargs)
+        self.assertEqual(kwargs['auth'], auth)
+
+    @mock.patch('requests.post')
+    def test_device_auth_call_override(self, mock_post):
+        dev_auth = ('devuser', 'devpassword')
+        call_auth = ('calluser', 'callpassword')
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_auth=dev_auth)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask', http_auth=call_auth)
+        _, kwargs = mock_post.call_args
+        self.assertIn('auth', kwargs)
+        self.assertEqual(kwargs['auth'], call_auth)
+
+    @mock.patch('requests.post')
+    def test_device_auth_call_override_none(self, mock_post):
+        dev_auth = ('devuser', 'devpassword')
+        call_auth = None
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_auth=dev_auth)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask', http_auth=call_auth)
+        _, kwargs = mock_post.call_args
+        self.assertIn('auth', kwargs)
+        self.assertEqual(kwargs['auth'], dev_auth)
+
+    @mock.patch('requests.post')
+    def test_device_auth_none_override(self, mock_post):
+        dev_auth = None
+        call_auth = ('calluser', 'callpassword')
+        device = upnp.Device('http://127.0.0.1:%s/upnp/IGD.xml' % self.httpd_port, http_auth=dev_auth)
+        ret = mock.Mock()
+        ret.content = """
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+           <s:Body>
+              <u:GetSubnetMaskResponse xmlns:u="urn:schemas-upnp-org:service:LANHostConfigManagement:1">
+                 <NewSubnetMask>255.255.255.0</NewSubnetMask>
+              </u:GetSubnetMaskResponse>
+           </s:Body>
+        </s:Envelope>
+        """
+        mock_post.return_value = ret
+        ret = device('GetSubnetMask', http_auth=call_auth)
+        _, kwargs = mock_post.call_args
+        self.assertIn('auth', kwargs)
+        self.assertEqual(kwargs['auth'], call_auth)
+
     def test_device_props(self):
         """
         `Device` instance should contain the properties from the XML.
@@ -786,6 +869,22 @@ class TestSOAP(unittest.TestCase):
         call_url, body = args
         self.assertEqual(url, call_url)
         etree.fromstring(body)
+
+    @mock.patch('requests.post', side_effect=EndPrematurelyException)
+    def test_call_with_auth(self, mock_post):
+        url = 'http://www.example.com'
+        auth = ('myuser', 'mypassword')
+        soap = upnp.soap.SOAP(url, 'test')
+        self.assertRaises(
+            EndPrematurelyException, soap.call,
+            'TestAction', http_auth=auth)
+        mock_post.assert_called()
+        args, kwargs = mock_post.call_args
+        call_url, body = args
+        self.assertEqual(url, call_url)
+        etree.fromstring(body)
+        self.assertIn('auth', kwargs)
+        self.assertEqual(kwargs['auth'], auth)
 
     @mock.patch('requests.post')
     def test_non_xml_error(self, mock_post):
