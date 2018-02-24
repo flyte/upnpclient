@@ -82,7 +82,7 @@ class Device(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
-    def __init__(self, location, device_name=None, ignore_urlbase=False):
+    def __init__(self, location, device_name=None, ignore_urlbase=False, http_auth=None):
         """
         Create a new Device instance. `location` is an URL to an XML file
         describing the server's services.
@@ -93,7 +93,9 @@ class Device(CallActionMixin):
         self.service_map = {}
         self._log = _getLogger('Device')
 
-        resp = requests.get(location, timeout=HTTP_TIMEOUT)
+        self.http_auth = http_auth
+
+        resp = requests.get(location, timeout=HTTP_TIMEOUT, auth=self.http_auth)
         resp.raise_for_status()
 
         root = etree.fromstring(resp.content)
@@ -214,7 +216,7 @@ class Service(CallActionMixin):
 
         url = urljoin(self._url_base, self.scpd_url)
         self._log.info('Reading %s', url)
-        resp = requests.get(url, timeout=HTTP_TIMEOUT)
+        resp = requests.get(url, timeout=HTTP_TIMEOUT, auth=self.device.http_auth)
         resp.raise_for_status()
         self.scpd_xml = etree.fromstring(resp.content)
         self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
@@ -350,7 +352,7 @@ class Service(CallActionMixin):
         )
         if timeout is not None:
             headers['TIMEOUT'] = 'Second-%s' % timeout
-        resp = requests.request('SUBSCRIBE', url, headers=headers)
+        resp = requests.request('SUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
         return Service.validate_subscription_response(resp)
 
@@ -365,7 +367,7 @@ class Service(CallActionMixin):
         )
         if timeout is not None:
             headers['TIMEOUT'] = 'Second-%s' % timeout
-        resp = requests.request('SUBSCRIBE', url, headers=headers)
+        resp = requests.request('SUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
         return Service.validate_subscription_renewal_response(resp)
 
@@ -378,7 +380,7 @@ class Service(CallActionMixin):
             HOST=urlparse(url).netloc,
             SID=sid
         )
-        resp = requests.request('UNSUBSCRIBE', url, headers=headers)
+        resp = requests.request('UNSUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
 
 
@@ -399,7 +401,7 @@ class Action(object):
     def __repr__(self):
         return "<Action '%s'>" % (self.name)
 
-    def __call__(self, **kwargs):
+    def __call__(self, http_auth=None, **kwargs):
         arg_reasons = {}
         call_kwargs = OrderedDict()
         # Validate arguments using the SCPD stateVariable definitions
@@ -417,7 +419,10 @@ class Action(object):
 
         # Make the actual call
         soap_client = SOAP(self.url, self.service_type)
-        soap_response = soap_client.call(self.name, call_kwargs)
+
+        # pass a requests auth object if either the device or the http_auth argument supply one
+        auth_object = http_auth or self.service.device.http_auth
+        soap_response = soap_client.call(self.name, call_kwargs, auth_object)
 
         # Marshall the response to python data types
         out = {}
