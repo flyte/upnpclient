@@ -150,3 +150,33 @@ Out[1]:
    'datatype': 'ui4',
    'name': 'PortMappingLeaseDuration'})]
 ```
+
+#### HTTP Auth/Headers
+
+You may pass a
+[requests compatible](http://docs.python-requests.org/en/master/user/authentication/)
+authentication object and/or a dictionary containing headers to use on the HTTP
+calls to your uPnP device.
+
+These may be set on the `Device` itself on creation for use with every HTTP
+call:
+
+```python
+device = upnpclient.Device(
+    "http://192.168.1.1:5000/rootDesc.xml"
+    http_auth=('myusername', 'mypassword'),
+    http_headers={'Some-Required-Header': 'somevalue'}
+)
+```
+
+Or on a per-call basis:
+
+```python
+device.Layer3Forwarding1.GetDefaultConnectionService(
+    http_auth=('myusername', 'mypassword'),
+    http_headers={'Some-Required-Header': 'somevalue'}
+)
+```
+
+If you've set either at `Device` level, they can be overridden per-call by
+setting them to `None`.
