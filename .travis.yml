@@ -1,40 +1,39 @@
 language: python
 
 stages:
+  - lint
   - test
   - name: publish
     if: tag =~ ^\d+\.\d+\.\d+$
 
+install:
+  - pip install tox
+
 jobs:
   include:
     - python: 2.7
+      stage: lint
+      script: tox -e flake8
+
+    - python: 3.6
+      stage: lint
+      script: tox -e flake8
+
+    - python: 2.7
       stage: test
-      install:
-        - pip install tox
       script: tox -e py27
 
     - python: 3.4
       stage: test
-      install:
-        - pip install tox
       script: tox -e py34
 
     - python: 3.5
       stage: test
-      install:
-        - pip install tox
       script: tox -e py35
 
     - python: 3.6
       stage: test
-      install:
-        - pip install tox
       script: tox -e py36
-
-    - python: 3.4
-      install:
-        - pip install tox
-      script: tox -e flake8
 
     - stage: publish
       script: skip
