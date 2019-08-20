@@ -109,17 +109,17 @@ class Device(CallActionMixin):
         root = etree.fromstring(resp.content)
         findtext = partial(root.findtext, namespaces=root.nsmap)
 
-        self.device_type = findtext('device/deviceType')
-        self.friendly_name = findtext('device/friendlyName')
-        self.manufacturer = findtext('device/manufacturer')
-        self.manufacturer_url = findtext('device/manufacturerURL')
-        self.model_description = findtext('device/modelDescription')
-        self.model_name = findtext('device/modelName')
-        self.model_number = findtext('device/modelNumber')
-        self.serial_number = findtext('device/serialNumber')
-        self.udn = findtext('device/UDN')
+        self.device_type = findtext('device/deviceType').strip()
+        self.friendly_name = findtext('device/friendlyName').strip()
+        self.manufacturer = findtext('device/manufacturer').strip()
+        self.manufacturer_url = findtext('device/manufacturerURL').strip()
+        self.model_description = findtext('device/modelDescription').strip()
+        self.model_name = findtext('device/modelName').strip()
+        self.model_number = findtext('device/modelNumber').strip()
+        self.serial_number = findtext('device/serialNumber').strip()
+        self.udn = findtext('device/UDN').strip()
 
-        self._url_base = findtext('URLBase')
+        self._url_base = findtext('URLBase').strip()
         if self._url_base is None or ignore_urlbase:
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
@@ -173,11 +173,11 @@ class Device(CallActionMixin):
             svc = Service(
                 self,
                 self._url_base,
-                findtext('serviceType'),
-                findtext('serviceId'),
-                findtext('controlURL'),
-                findtext('SCPDURL'),
-                findtext('eventSubURL')
+                findtext('serviceType').strip(),
+                findtext('serviceId').strip(),
+                findtext('controlURL').strip(),
+                findtext('SCPDURL').strip(),
+                findtext('eventSubURL').strip()
             )
             self._log.debug(
                 '%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
@@ -275,8 +275,8 @@ class Service(CallActionMixin):
         for statevar_node in self._findall('serviceStateTable/stateVariable'):
             findtext = partial(statevar_node.findtext, namespaces=statevar_node.nsmap)
             findall = partial(statevar_node.findall, namespaces=statevar_node.nsmap)
-            name = findtext('name')
-            datatype = findtext('dataType')
+            name = findtext('name').strip()
+            datatype = findtext('dataType').strip()
             send_events = statevar_node.attrib.get('sendEvents', 'yes').lower() == 'yes'
             allowed_values = set([e.text for e in findall('allowedValueList/allowedValue')])
             self.statevars[name] = dict(
@@ -290,15 +290,15 @@ class Service(CallActionMixin):
         action_url = urljoin(self._url_base, self._control_url)
 
         for action_node in self._findall('actionList/action'):
-            name = action_node.findtext('name', namespaces=action_node.nsmap)
+            name = action_node.findtext('name', namespaces=action_node.nsmap).strip()
             argsdef_in = []
             argsdef_out = []
             for arg_node in action_node.findall(
                     'argumentList/argument', namespaces=action_node.nsmap):
                 findtext = partial(arg_node.findtext, namespaces=arg_node.nsmap)
-                arg_name = findtext('name')
-                arg_statevar = self.statevars[findtext('relatedStateVariable')]
-                if findtext('direction').lower() == 'in':
+                arg_name = findtext('name').strip()
+                arg_statevar = self.statevars[findtext('relatedStateVariable').strip()]
+                if findtext('direction').strip().lower() == 'in':
                     argsdef_in.append((arg_name, arg_statevar))
                 else:
                     argsdef_out.append((arg_name, arg_statevar))
