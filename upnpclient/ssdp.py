@@ -11,6 +11,7 @@ SSDP_MX = DISCOVER_TIMEOUT
 ST_ALL = "ssdp:all"
 ST_ROOTDEVICE = "upnp:rootdevice"
 
+
 class Entry(object):
     def __init__(self, location):
         self.location = location
