@@ -11,6 +11,10 @@ SSDP_MX = DISCOVER_TIMEOUT
 ST_ALL = "ssdp:all"
 ST_ROOTDEVICE = "upnp:rootdevice"
 
+class Entry(object):
+    def __init__(self, location):
+        self.location = location
+
 
 def ssdp_request(ssdp_st, ssdp_mx=SSDP_MX):
     """Return request bytes for given st and mx."""
@@ -72,7 +76,7 @@ def scan(timeout=5):
                     continue
                 locations = re.findall(r"LOCATION: *(?P<url>\S+)\s+", response, re.IGNORECASE)
                 if locations and len(locations) > 0:
-                    urls.append(locations[0])
+                    urls.append(Entry(locations[0]))
 
     finally:
         for s in sockets:
@@ -93,10 +97,10 @@ def discover(timeout=5):
     """
     devices = {}
     for entry in scan(timeout):
-        if entry in devices:
+        if entry.location in devices:
             continue
         try:
-            devices[entry] = Device(entry)
+            devices[entry.location] = Device(entry.location)
         except Exception as exc:
             log = _getLogger("ssdp")
             log.error('Error \'%s\' for %s', exc, entry)
