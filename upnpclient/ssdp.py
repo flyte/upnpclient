@@ -70,7 +70,7 @@ def scan(timeout=5):
                     sockets.remove(sock)
                     sock.close()
                     continue
-                locations = re.findall("LOCATION: *(?P<url>\S+)\s+", response, re.IGNORECASE)
+                locations = re.findall(r"LOCATION: *(?P<url>\S+)\s+", response, re.IGNORECASE)
                 if locations and len(locations) > 0:
                     urls.append(locations[0])
 
