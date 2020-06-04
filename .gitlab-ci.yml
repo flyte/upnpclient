@@ -1,9 +1,23 @@
 stages:
   - test
   
-Run Tox:
+Python 3.6 tests:
+  stage: test
+  image: python:3.6
+  script:
+    - pip install poetry tox
+    - tox -e py36
+
+Python 3.7 tests:
+  stage: test
+  image: python:3.7
+  script:
+    - pip install poetry tox
+    - tox -e py37
+
+Python 3.8 tests:
   stage: test
   image: python:3.8
   script:
     - pip install poetry tox
-    - tox
+    - tox -e py38
