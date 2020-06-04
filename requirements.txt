@@ -1,5 +1,4 @@
 requests
 six
-netdisco
 python-dateutil
 lxml
