@@ -1,0 +1,9 @@
+stages:
+  - test
+  
+Run Tox:
+  stage: test
+  image: python:3.8
+  script:
+    - pip install poetry tox
+    - tox
