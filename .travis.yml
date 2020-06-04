@@ -23,17 +23,17 @@ jobs:
       stage: test
       script: tox -e py27
 
-    - python: 3.4
-      stage: test
-      script: tox -e py34
-
-    - python: 3.5
-      stage: test
-      script: tox -e py35
-
     - python: 3.6
       stage: test
       script: tox -e py36
+
+    - python: 3.7
+      stage: test
+      script: tox -e py37
+
+    - python: 3.8
+      stage: test
+      script: tox -e py38
 
     - stage: publish
       script: skip
