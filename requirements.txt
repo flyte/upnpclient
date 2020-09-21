@@ -2,3 +2,4 @@ requests
 six
 python-dateutil
 lxml
+ifaddr
