@@ -27,24 +27,11 @@ jobs:
       script: skip
       python: 3.8
       deploy:
-      provider: pypi
-      user: flyte
-      password:
-        secure: "Va3I+cF5pr5sgNm9P9JKNZXBotck2HytlHFjto6PcV7N7x0pZuxV2fDoGM8+j/pkdW+euIkDhKC1JnGvBdhgLKZR3GwEamJ1EiuarMKIO4xl3rkqS29CgQdgLgkdjAkz/PVgpgz7fQP/bvHWIhf6Asei4ifM2VjfcOcqw1R2FoVuRYfYkBaT34pyla7I3HV2KR1RH2Zyl7tGRA9uJKfMlaJj+/PjL0KgabbDBRteTLrvhJGqPb1EfXwlyk0QU7xxoSdmpQUfxulbEKATRJQLAqzEXaci+1XemsuZMW2jFBvw7lQhoJzWPO0pI6Ug6Ctej1gPnRj29rJPXfph3VYn7swVPiRYd6Qx85rEvLIeILGuWVz2UjGljJarBZt+JTw16lNyrbwTizFvcmo/MARkVnN+H61lGAMgIGDLbaCod8ja3cIaJjJfFZBDiitMSUL8Ja0IMUweuFFyV64p0PoKJFdVg3m5CCStB/eu3Z5Bgg+sDRBdf+szt9HWDXjLToEp6jf2jMXJ1n6yf1xcXyZOZ4JbYRX8Dba7PiID8O2f30GUoVyWg/yHDWauLRm5yKXPIfGvWiiPz07wIO0uq5WTNYpvFhwy4fI80WL9C/TSKSieu5rPy+l4gqrQQJu6O3CQuMdID9UwET/pexTegpz6CfN6QMEbSAqav+8Tnxhzlw4="
-      on:
-        tags: true
-        repo: flyte/upnpclient
-      distributions: bdist_wheel
-
-    - stage: publish
-      script: skip
-      python: 3.8
-      deploy:
-      provider: pypi
-      user: flyte
-      password:
-        secure: "Va3I+cF5pr5sgNm9P9JKNZXBotck2HytlHFjto6PcV7N7x0pZuxV2fDoGM8+j/pkdW+euIkDhKC1JnGvBdhgLKZR3GwEamJ1EiuarMKIO4xl3rkqS29CgQdgLgkdjAkz/PVgpgz7fQP/bvHWIhf6Asei4ifM2VjfcOcqw1R2FoVuRYfYkBaT34pyla7I3HV2KR1RH2Zyl7tGRA9uJKfMlaJj+/PjL0KgabbDBRteTLrvhJGqPb1EfXwlyk0QU7xxoSdmpQUfxulbEKATRJQLAqzEXaci+1XemsuZMW2jFBvw7lQhoJzWPO0pI6Ug6Ctej1gPnRj29rJPXfph3VYn7swVPiRYd6Qx85rEvLIeILGuWVz2UjGljJarBZt+JTw16lNyrbwTizFvcmo/MARkVnN+H61lGAMgIGDLbaCod8ja3cIaJjJfFZBDiitMSUL8Ja0IMUweuFFyV64p0PoKJFdVg3m5CCStB/eu3Z5Bgg+sDRBdf+szt9HWDXjLToEp6jf2jMXJ1n6yf1xcXyZOZ4JbYRX8Dba7PiID8O2f30GUoVyWg/yHDWauLRm5yKXPIfGvWiiPz07wIO0uq5WTNYpvFhwy4fI80WL9C/TSKSieu5rPy+l4gqrQQJu6O3CQuMdID9UwET/pexTegpz6CfN6QMEbSAqav+8Tnxhzlw4="
-      on:
-        tags: true
-        repo: flyte/upnpclient
-      distributions: sdist bdist_wheel
+        provider: pypi
+        user: flyte
+        password:
+          secure: "Va3I+cF5pr5sgNm9P9JKNZXBotck2HytlHFjto6PcV7N7x0pZuxV2fDoGM8+j/pkdW+euIkDhKC1JnGvBdhgLKZR3GwEamJ1EiuarMKIO4xl3rkqS29CgQdgLgkdjAkz/PVgpgz7fQP/bvHWIhf6Asei4ifM2VjfcOcqw1R2FoVuRYfYkBaT34pyla7I3HV2KR1RH2Zyl7tGRA9uJKfMlaJj+/PjL0KgabbDBRteTLrvhJGqPb1EfXwlyk0QU7xxoSdmpQUfxulbEKATRJQLAqzEXaci+1XemsuZMW2jFBvw7lQhoJzWPO0pI6Ug6Ctej1gPnRj29rJPXfph3VYn7swVPiRYd6Qx85rEvLIeILGuWVz2UjGljJarBZt+JTw16lNyrbwTizFvcmo/MARkVnN+H61lGAMgIGDLbaCod8ja3cIaJjJfFZBDiitMSUL8Ja0IMUweuFFyV64p0PoKJFdVg3m5CCStB/eu3Z5Bgg+sDRBdf+szt9HWDXjLToEp6jf2jMXJ1n6yf1xcXyZOZ4JbYRX8Dba7PiID8O2f30GUoVyWg/yHDWauLRm5yKXPIfGvWiiPz07wIO0uq5WTNYpvFhwy4fI80WL9C/TSKSieu5rPy+l4gqrQQJu6O3CQuMdID9UwET/pexTegpz6CfN6QMEbSAqav+8Tnxhzlw4="
+        on:
+          tags: true
+          repo: flyte/upnpclient
+        distributions: sdist bdist_wheel
