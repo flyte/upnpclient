@@ -4,6 +4,7 @@ import socket
 import re
 from datetime import datetime, timedelta
 import select
+import ifaddr
 
 DISCOVER_TIMEOUT = 2
 SSDP_TARGET = ("239.255.255.250", 1900)
@@ -34,7 +35,7 @@ def scan(timeout=5):
     ssdp_requests = [ssdp_request(ST_ALL), ssdp_request(ST_ROOTDEVICE)]
     stop_wait = datetime.now() + timedelta(seconds=timeout)
 
-    for addr in get_all_address():
+    for addr in get_addresses_ipv4():
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL,
@@ -86,8 +87,17 @@ def scan(timeout=5):
     return set(urls)
 
 
-def get_all_address():
-    return [addr[-1][0] for addr in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)]
+def get_addresses_ipv4():
+    # Get all adapters on current machine
+    adapters = ifaddr.get_adapters()
+    # Get the ip from the found adapters
+    # Ignore localhost und IPv6 addresses
+    return list(
+        set(
+            addr.ip for iface in adapters for addr in iface.ips 
+            if addr.is_IPv4 and addr.ip != '127.0.0.1'
+        )
+    )
 
 
 def discover(timeout=5):
