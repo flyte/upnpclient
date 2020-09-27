@@ -8,6 +8,7 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+
 class Ui_uPnPScannerForm(object):
     def setupUi(self, uPnPScannerForm):
         uPnPScannerForm.setObjectName("uPnPScannerForm")
@@ -43,4 +44,3 @@ class Ui_uPnPScannerForm(object):
         uPnPScannerForm.setWindowTitle(_translate("uPnPScannerForm", "uPnP Scanner"))
         self.connectButton.setText(_translate("uPnPScannerForm", "Connect"))
         self.scanButton.setText(_translate("uPnPScannerForm", "Scan"))
-

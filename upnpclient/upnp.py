@@ -22,6 +22,7 @@ class UPNPError(Exception):
     """
     Exception class for UPnP errors.
     """
+
     pass
 
 
@@ -29,6 +30,7 @@ class InvalidActionException(UPNPError):
     """
     Action doesn't exist.
     """
+
     pass
 
 
@@ -36,6 +38,7 @@ class ValidationError(UPNPError):
     """
     Given value didn't validate with the given data type.
     """
+
     def __init__(self, reasons):
         super(ValidationError, self).__init__()
         self.reasons = reasons
@@ -45,6 +48,7 @@ class UnexpectedResponse(UPNPError):
     """
     Got a response we didn't expect.
     """
+
     pass
 
 
@@ -57,7 +61,7 @@ class CallActionMixin(object):
         action = self.find_action(action_name)
         if action is not None:
             return action(**kwargs)
-        raise InvalidActionException('Action with name %r does not exist.' % action_name)
+        raise InvalidActionException("Action with name %r does not exist." % action_name)
 
 
 class Device(CallActionMixin):
@@ -82,9 +86,15 @@ class Device(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
+
     def __init__(
-            self, location, device_name=None, ignore_urlbase=False,
-            http_auth=None, http_headers=None):
+        self,
+        location,
+        device_name=None,
+        ignore_urlbase=False,
+        http_auth=None,
+        http_headers=None,
+    ):
         """
         Create a new Device instance. `location` is an URL to an XML file
         describing the server's services.
@@ -93,33 +103,30 @@ class Device(CallActionMixin):
         self.device_name = location if device_name is None else device_name
         self.services = []
         self.service_map = {}
-        self._log = _getLogger('Device')
+        self._log = _getLogger("Device")
 
         self.http_auth = http_auth
         self.http_headers = http_headers
 
         resp = requests.get(
-          location,
-          timeout=HTTP_TIMEOUT,
-          auth=self.http_auth,
-          headers=self.http_headers
+            location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers
         )
         resp.raise_for_status()
 
         root = etree.fromstring(resp.content)
         findtext = partial(root.findtext, namespaces=root.nsmap)
 
-        self.device_type = findtext('device/deviceType').strip()
-        self.friendly_name = findtext('device/friendlyName').strip()
-        self.manufacturer = findtext('device/manufacturer').strip()
-        self.manufacturer_url = findtext('device/manufacturerURL').strip()
-        self.model_description = findtext('device/modelDescription').strip()
-        self.model_name = findtext('device/modelName').strip()
-        self.model_number = findtext('device/modelNumber').strip()
-        self.serial_number = findtext('device/serialNumber').strip()
-        self.udn = findtext('device/UDN').strip()
+        self.device_type = findtext("device/deviceType").strip()
+        self.friendly_name = findtext("device/friendlyName").strip()
+        self.manufacturer = findtext("device/manufacturer").strip()
+        self.manufacturer_url = findtext("device/manufacturerURL").strip()
+        self.model_description = findtext("device/modelDescription").strip()
+        self.model_name = findtext("device/modelName").strip()
+        self.model_number = findtext("device/modelNumber").strip()
+        self.serial_number = findtext("device/serialNumber").strip()
+        self.udn = findtext("device/UDN").strip()
 
-        self._url_base = findtext('URLBase').strip()
+        self._url_base = findtext("URLBase").strip()
         if self._url_base is None or ignore_urlbase:
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
@@ -140,7 +147,7 @@ class Device(CallActionMixin):
         try:
             return self.service_map[name]
         except KeyError:
-            raise AttributeError('No attribute or service found with name %r.' % name)
+            raise AttributeError("No attribute or service found with name %r." % name)
 
     def __getitem__(self, key):
         """
@@ -168,19 +175,20 @@ class Device(CallActionMixin):
         """
         # The double slash in the XPath is deliberate, as services can be
         # listed in two places (Section 2.3 of uPNP device architecture v1.1)
-        for node in self._findall('device//serviceList/service'):
+        for node in self._findall("device//serviceList/service"):
             findtext = partial(node.findtext, namespaces=self._root_xml.nsmap)
             svc = Service(
                 self,
                 self._url_base,
-                findtext('serviceType').strip(),
-                findtext('serviceId').strip(),
-                findtext('controlURL').strip(),
-                findtext('SCPDURL').strip(),
-                findtext('eventSubURL').strip()
+                findtext("serviceType").strip(),
+                findtext("serviceId").strip(),
+                findtext("controlURL").strip(),
+                findtext("SCPDURL").strip(),
+                findtext("eventSubURL").strip(),
             )
             self._log.debug(
-                '%s: Service %r at %r', self.device_name, svc.service_type, svc.scpd_url)
+                "%s: Service %r at %r", self.device_name, svc.service_type, svc.scpd_url
+            )
             self.services.append(svc)
             self.service_map[svc.name] = svc
 
@@ -203,8 +211,17 @@ class Service(CallActionMixin):
     parses the actions and state variables. It can then be used to call
     actions.
     """
-    def __init__(self, device, url_base, service_type, service_id,
-                 control_url, scpd_url, event_sub_url):
+
+    def __init__(
+        self,
+        device,
+        url_base,
+        service_type,
+        service_id,
+        control_url,
+        scpd_url,
+        event_sub_url,
+    ):
         self.device = device
         self._url_base = url_base
         self.service_type = service_type
@@ -216,20 +233,20 @@ class Service(CallActionMixin):
         self.actions = []
         self.action_map = {}
         self.statevars = {}
-        self._log = _getLogger('Service')
+        self._log = _getLogger("Service")
 
-        self._log.debug('%s url_base: %s', self.service_id, self._url_base)
-        self._log.debug('%s SCPDURL: %s', self.service_id, self.scpd_url)
-        self._log.debug('%s controlURL: %s', self.service_id, self._control_url)
-        self._log.debug('%s eventSubURL: %s', self.service_id, self._event_sub_url)
+        self._log.debug("%s url_base: %s", self.service_id, self._url_base)
+        self._log.debug("%s SCPDURL: %s", self.service_id, self.scpd_url)
+        self._log.debug("%s controlURL: %s", self.service_id, self._control_url)
+        self._log.debug("%s eventSubURL: %s", self.service_id, self._event_sub_url)
 
         url = urljoin(self._url_base, self.scpd_url)
-        self._log.debug('Reading %s', url)
+        self._log.debug("Reading %s", url)
         resp = requests.get(
-          url,
-          timeout=HTTP_TIMEOUT,
-          auth=self.device.http_auth,
-          headers=self.device.http_headers
+            url,
+            timeout=HTTP_TIMEOUT,
+            auth=self.device.http_auth,
+            headers=self.device.http_headers,
         )
         resp.raise_for_status()
         self.scpd_xml = etree.fromstring(resp.content)
@@ -250,7 +267,7 @@ class Service(CallActionMixin):
         try:
             return self.action_map[name]
         except KeyError:
-            raise AttributeError('No attribute or action found with name %r.' % name)
+            raise AttributeError("No attribute or action found with name %r." % name)
 
     def __getitem__(self, key):
         """
@@ -267,42 +284,47 @@ class Service(CallActionMixin):
     @property
     def name(self):
         try:
-            return self.service_id[self.service_id.rindex(":")+1:]
+            return self.service_id[self.service_id.rindex(":") + 1 :]
         except ValueError:
             return self.service_id
 
     def _read_state_vars(self):
-        for statevar_node in self._findall('serviceStateTable/stateVariable'):
+        for statevar_node in self._findall("serviceStateTable/stateVariable"):
             findtext = partial(statevar_node.findtext, namespaces=statevar_node.nsmap)
             findall = partial(statevar_node.findall, namespaces=statevar_node.nsmap)
-            name = findtext('name').strip()
-            datatype = findtext('dataType').strip()
-            send_events = statevar_node.attrib.get('sendEvents', 'yes').lower() == 'yes'
-            allowed_values = set([e.text for e in findall('allowedValueList/allowedValue')])
+            name = findtext("name").strip()
+            datatype = findtext("dataType").strip()
+            send_events = statevar_node.attrib.get("sendEvents", "yes").lower() == "yes"
+            allowed_values = set(
+                [e.text for e in findall("allowedValueList/allowedValue")]
+            )
             self.statevars[name] = dict(
                 name=name,
                 datatype=datatype,
                 allowed_values=allowed_values,
-                send_events=send_events
+                send_events=send_events,
             )
 
     def _read_actions(self):
         action_url = urljoin(self._url_base, self._control_url)
 
-        for action_node in self._findall('actionList/action'):
-            name = action_node.findtext('name', namespaces=action_node.nsmap).strip()
+        for action_node in self._findall("actionList/action"):
+            name = action_node.findtext("name", namespaces=action_node.nsmap).strip()
             argsdef_in = []
             argsdef_out = []
             for arg_node in action_node.findall(
-                    'argumentList/argument', namespaces=action_node.nsmap):
+                "argumentList/argument", namespaces=action_node.nsmap
+            ):
                 findtext = partial(arg_node.findtext, namespaces=arg_node.nsmap)
-                arg_name = findtext('name').strip()
-                arg_statevar = self.statevars[findtext('relatedStateVariable').strip()]
-                if findtext('direction').strip().lower() == 'in':
+                arg_name = findtext("name").strip()
+                arg_statevar = self.statevars[findtext("relatedStateVariable").strip()]
+                if findtext("direction").strip().lower() == "in":
                     argsdef_in.append((arg_name, arg_statevar))
                 else:
                     argsdef_out.append((arg_name, arg_statevar))
-            action = Action(self, action_url, self.service_type, name, argsdef_in, argsdef_out)
+            action = Action(
+                self, action_url, self.service_type, name, argsdef_in, argsdef_out
+            )
             self.action_map[name] = action
             self.actions.append(action)
 
@@ -310,42 +332,54 @@ class Service(CallActionMixin):
     def validate_subscription_response(resp):
         lc_headers = {k.lower(): v for k, v in resp.headers.items()}
         try:
-            sid = lc_headers['sid']
+            sid = lc_headers["sid"]
         except KeyError:
-            raise UnexpectedResponse('Event subscription call returned without a "SID" header')
-        try:
-            timeout_str = lc_headers['timeout'].lower()
-        except KeyError:
-            raise UnexpectedResponse('Event subscription call returned without a "Timeout" header')
-        if not timeout_str.startswith('second-'):
             raise UnexpectedResponse(
-                'Event subscription call returned an invalid timeout value: %r' % timeout_str)
-        timeout_str = timeout_str[len('Second-'):]
+                'Event subscription call returned without a "SID" header'
+            )
         try:
-            timeout = None if timeout_str == 'infinite' else int(timeout_str)
+            timeout_str = lc_headers["timeout"].lower()
+        except KeyError:
+            raise UnexpectedResponse(
+                'Event subscription call returned without a "Timeout" header'
+            )
+        if not timeout_str.startswith("second-"):
+            raise UnexpectedResponse(
+                "Event subscription call returned an invalid timeout value: %r"
+                % timeout_str
+            )
+        timeout_str = timeout_str[len("Second-") :]
+        try:
+            timeout = None if timeout_str == "infinite" else int(timeout_str)
         except ValueError:
             raise UnexpectedResponse(
                 'Event subscription call returned a timeout value which wasn\'t "infinite" or an in'
-                'teger')
+                "teger"
+            )
         return sid, timeout
 
     @staticmethod
     def validate_subscription_renewal_response(resp):
         lc_headers = {k.lower(): v for k, v in resp.headers.items()}
         try:
-            timeout_str = lc_headers['timeout'].lower()
+            timeout_str = lc_headers["timeout"].lower()
         except KeyError:
-            raise UnexpectedResponse('Event subscription call returned without a "Timeout" header')
-        if not timeout_str.startswith('second-'):
             raise UnexpectedResponse(
-                'Event subscription call returned an invalid timeout value: %r' % timeout_str)
-        timeout_str = timeout_str[len('Second-'):]
+                'Event subscription call returned without a "Timeout" header'
+            )
+        if not timeout_str.startswith("second-"):
+            raise UnexpectedResponse(
+                "Event subscription call returned an invalid timeout value: %r"
+                % timeout_str
+            )
+        timeout_str = timeout_str[len("Second-") :]
         try:
-            timeout = None if timeout_str == 'infinite' else int(timeout_str)
+            timeout = None if timeout_str == "infinite" else int(timeout_str)
         except ValueError:
             raise UnexpectedResponse(
                 'Event subscription call returned a timeout value which wasn\'t "infinite" or an in'
-                'teger')
+                "teger"
+            )
         return timeout
 
     def find_action(self, action_name):
@@ -360,13 +394,13 @@ class Service(CallActionMixin):
         """
         url = urljoin(self._url_base, self._event_sub_url)
         headers = dict(
-            HOST=urlparse(url).netloc,
-            CALLBACK='<%s>' % callback_url,
-            NT='upnp:event'
+            HOST=urlparse(url).netloc, CALLBACK="<%s>" % callback_url, NT="upnp:event"
         )
         if timeout is not None:
-            headers['TIMEOUT'] = 'Second-%s' % timeout
-        resp = requests.request('SUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
+            headers["TIMEOUT"] = "Second-%s" % timeout
+        resp = requests.request(
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+        )
         resp.raise_for_status()
         return Service.validate_subscription_response(resp)
 
@@ -375,13 +409,12 @@ class Service(CallActionMixin):
         Renews a previously configured subscription.
         """
         url = urljoin(self._url_base, self._event_sub_url)
-        headers = dict(
-            HOST=urlparse(url).netloc,
-            SID=sid
-        )
+        headers = dict(HOST=urlparse(url).netloc, SID=sid)
         if timeout is not None:
-            headers['TIMEOUT'] = 'Second-%s' % timeout
-        resp = requests.request('SUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
+            headers["TIMEOUT"] = "Second-%s" % timeout
+        resp = requests.request(
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+        )
         resp.raise_for_status()
         return Service.validate_subscription_renewal_response(resp)
 
@@ -390,16 +423,17 @@ class Service(CallActionMixin):
         Unsubscribes from a previously configured subscription.
         """
         url = urljoin(self._url_base, self._event_sub_url)
-        headers = dict(
-            HOST=urlparse(url).netloc,
-            SID=sid
+        headers = dict(HOST=urlparse(url).netloc, SID=sid)
+        resp = requests.request(
+            "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth
         )
-        resp = requests.request('UNSUBSCRIBE', url, headers=headers, auth=self.device.http_auth)
         resp.raise_for_status()
 
 
 class Action(object):
-    def __init__(self, service, url, service_type, name, argsdef_in=None, argsdef_out=None):
+    def __init__(
+        self, service, url, service_type, name, argsdef_in=None, argsdef_out=None
+    ):
         if argsdef_in is None:
             argsdef_in = []
         if argsdef_out is None:
@@ -410,7 +444,7 @@ class Action(object):
         self.name = name
         self.argsdef_in = argsdef_in
         self.argsdef_out = argsdef_out
-        self._log = _getLogger('Action')
+        self._log = _getLogger("Action")
 
     def __repr__(self):
         return "<Action '%s'>" % (self.name)
@@ -422,7 +456,7 @@ class Action(object):
         # Validate arguments using the SCPD stateVariable definitions
         for name, statevar in self.argsdef_in:
             if name not in kwargs:
-                raise UPNPError('Missing required param \'%s\'' % (name))
+                raise UPNPError("Missing required param '%s'" % (name))
             valid, reasons = self.validate_arg(kwargs[name], statevar)
             if not valid:
                 arg_reasons[name] = reasons
@@ -437,17 +471,17 @@ class Action(object):
         soap_client = SOAP(self.url, self.service_type)
 
         soap_response = soap_client.call(
-          self.name,
-          call_kwargs,
-          http_auth or self.service.device.http_auth,
-          http_headers or self.service.device.http_headers
+            self.name,
+            call_kwargs,
+            http_auth or self.service.device.http_auth,
+            http_headers or self.service.device.http_headers,
         )
         self._log.debug("<< %s (%s): %s", self.name, call_kwargs, soap_response)
 
         # Marshall the response to python data types
         out = {}
         for name, statevar in self.argsdef_out:
-            _, value = marshal_value(statevar['datatype'], soap_response[name])
+            _, value = marshal_value(statevar["datatype"], soap_response[name])
             out[name] = value
 
         return out
@@ -457,82 +491,95 @@ class Action(object):
         """
         Validate an incoming (unicode) string argument according the UPnP spec. Raises UPNPError.
         """
-        datatype = argdef['datatype']
+        datatype = argdef["datatype"]
         reasons = set()
         ranges = {
-            'ui1': (int, 0, 255),
-            'ui2': (int, 0, 65535),
-            'ui4': (int, 0, 4294967295),
-            'i1': (int, -128, 127),
-            'i2': (int, -32768, 32767),
-            'i4': (int, -2147483648, 2147483647),
-            'r4': (Decimal, Decimal('3.40282347E+38'), Decimal('1.17549435E-38'))
+            "ui1": (int, 0, 255),
+            "ui2": (int, 0, 65535),
+            "ui4": (int, 0, 4294967295),
+            "i1": (int, -128, 127),
+            "i2": (int, -32768, 32767),
+            "i4": (int, -2147483648, 2147483647),
+            "r4": (Decimal, Decimal("3.40282347E+38"), Decimal("1.17549435E-38")),
         }
         try:
             if datatype in set(ranges.keys()):
                 v_type, v_min, v_max = ranges[datatype]
                 if not v_min <= v_type(arg) <= v_max:
-                    reasons.add('%r datatype must be a number in the range %s to %s' % (
-                        datatype, v_min, v_max))
+                    reasons.add(
+                        "%r datatype must be a number in the range %s to %s"
+                        % (datatype, v_min, v_max)
+                    )
 
-            elif datatype in {'r8', 'number', 'float', 'fixed.14.4'}:
+            elif datatype in {"r8", "number", "float", "fixed.14.4"}:
                 v = Decimal(arg)
                 if v < 0:
-                    assert Decimal('-1.79769313486232E308') <= v <= Decimal('4.94065645841247E-324')
+                    assert (
+                        Decimal("-1.79769313486232E308")
+                        <= v
+                        <= Decimal("4.94065645841247E-324")
+                    )
                 else:
-                    assert Decimal('4.94065645841247E-324') <= v <= Decimal('1.79769313486232E308')
+                    assert (
+                        Decimal("4.94065645841247E-324")
+                        <= v
+                        <= Decimal("1.79769313486232E308")
+                    )
 
-            elif datatype == 'char':
-                v = arg.decode('utf8') if six.PY2 or isinstance(arg, bytes) else arg
+            elif datatype == "char":
+                v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
                 assert len(v) == 1
 
-            elif datatype == 'string':
+            elif datatype == "string":
                 v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
-                if argdef['allowed_values'] and v not in argdef['allowed_values']:
-                    reasons.add('Value %r not in allowed values list' % arg)
+                if argdef["allowed_values"] and v not in argdef["allowed_values"]:
+                    reasons.add("Value %r not in allowed values list" % arg)
 
-            elif datatype == 'date':
+            elif datatype == "date":
                 v = parse_date(arg)
                 if any((v.hour, v.minute, v.second)):
                     reasons.add("'date' datatype must not contain a time")
 
-            elif datatype in ('dateTime', 'dateTime.tz'):
+            elif datatype in ("dateTime", "dateTime.tz"):
                 v = parse_date(arg)
-                if datatype == 'dateTime' and v.tzinfo is not None:
+                if datatype == "dateTime" and v.tzinfo is not None:
                     reasons.add("'dateTime' datatype must not contain a timezone")
 
-            elif datatype in ('time', 'time.tz'):
+            elif datatype in ("time", "time.tz"):
                 now = datetime.datetime.utcnow()
                 v = parse_date(arg, default=now)
                 if v.tzinfo is not None:
                     now += v.utcoffset()
-                if not all((
-                        v.day == now.day,
-                        v.month == now.month,
-                        v.year == now.year)):
-                    reasons.add('%r datatype must not contain a date' % datatype)
-                if datatype == 'time' and v.tzinfo is not None:
-                    reasons.add('%r datatype must not have timezone information' % datatype)
+                if not all((v.day == now.day, v.month == now.month, v.year == now.year)):
+                    reasons.add("%r datatype must not contain a date" % datatype)
+                if datatype == "time" and v.tzinfo is not None:
+                    reasons.add(
+                        "%r datatype must not have timezone information" % datatype
+                    )
 
-            elif datatype == 'boolean':
-                valid = {'true', 'yes', '1', 'false', 'no', '0'}
+            elif datatype == "boolean":
+                valid = {"true", "yes", "1", "false", "no", "0"}
                 if arg.lower() not in valid:
-                    reasons.add('%r datatype must be one of %s' % (datatype, ','.join(valid)))
+                    reasons.add(
+                        "%r datatype must be one of %s" % (datatype, ",".join(valid))
+                    )
 
-            elif datatype == 'bin.base64':
+            elif datatype == "bin.base64":
                 b64decode(arg)
 
-            elif datatype == 'bin.hex':
+            elif datatype == "bin.hex":
                 unhexlify(arg)
 
-            elif datatype == 'uri':
+            elif datatype == "uri":
                 urlparse(arg)
 
-            elif datatype == 'uuid':
+            elif datatype == "uuid":
                 if not re.match(
-                        r'^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$',
-                        arg, re.I):
-                    reasons.add('%r datatype must contain a valid UUID')
+                    r"^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$",
+                    arg,
+                    re.I,
+                ):
+                    reasons.add("%r datatype must contain a valid UUID")
 
             else:
                 reasons.add("%r datatype is unrecognised." % datatype)

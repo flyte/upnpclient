@@ -7,10 +7,10 @@ from .util import _getLogger
 
 
 SOAP_TIMEOUT = 30
-NS_SOAP_ENV = 'http://schemas.xmlsoap.org/soap/envelope/'
-NS_UPNP_ERR = 'urn:schemas-upnp-org:control-1-0'
-ENCODING_STYLE = 'http://schemas.xmlsoap.org/soap/encoding/'
-ENCODING = 'utf-8'
+NS_SOAP_ENV = "http://schemas.xmlsoap.org/soap/envelope/"
+NS_UPNP_ERR = "urn:schemas-upnp-org:control-1-0"
+ENCODING_STYLE = "http://schemas.xmlsoap.org/soap/encoding/"
+ENCODING = "utf-8"
 
 
 class SOAPError(Exception):
@@ -25,36 +25,43 @@ class SOAP(object):
     """SOAP (Simple Object Access Protocol) implementation
     This class defines a simple SOAP client.
     """
+
     def __init__(self, url, service_type):
         self.url = url
         self.service_type = service_type
         # FIXME: Use urlparse for this:
-        self._host = self.url.split('//', 1)[1].split('/', 1)[0]  # Get hostname portion of url
-        self._log = _getLogger('SOAP')
+        self._host = self.url.split("//", 1)[1].split("/", 1)[
+            0
+        ]  # Get hostname portion of url
+        self._log = _getLogger("SOAP")
 
     def _extract_upnperror(self, err_xml):
         """
         Extract the error code and error description from an error returned by the device.
         """
-        nsmap = {'s': list(err_xml.nsmap.values())[0]}
-        fault_str = err_xml.findtext(
-            's:Body/s:Fault/faultstring', namespaces=nsmap)
+        nsmap = {"s": list(err_xml.nsmap.values())[0]}
+        fault_str = err_xml.findtext("s:Body/s:Fault/faultstring", namespaces=nsmap)
         try:
             err = err_xml.xpath(
-                's:Body/s:Fault/detail/*[name()="%s"]' % fault_str, namespaces=nsmap)[0]
+                's:Body/s:Fault/detail/*[name()="%s"]' % fault_str, namespaces=nsmap
+            )[0]
         except IndexError:
-            msg = 'Tag with name of %r was not found in the error response.' % fault_str
+            msg = "Tag with name of %r was not found in the error response." % fault_str
             self._log.debug(
-                msg + '\n' + etree.tostring(err_xml, pretty_print=True).decode('utf8'))
+                msg + "\n" + etree.tostring(err_xml, pretty_print=True).decode("utf8")
+            )
             raise SOAPProtocolError(msg)
 
-        err_code = err.findtext('errorCode', namespaces=err.nsmap)
-        err_desc = err.findtext('errorDescription', namespaces=err.nsmap)
+        err_code = err.findtext("errorCode", namespaces=err.nsmap)
+        err_desc = err.findtext("errorDescription", namespaces=err.nsmap)
 
         if err_code is None or err_desc is None:
-            msg = 'Tags errorCode or errorDescription were not found in the error response.'
+            msg = (
+                "Tags errorCode or errorDescription were not found in the error response."
+            )
             self._log.debug(
-                msg + '\n' + etree.tostring(err_xml, pretty_print=True).decode('utf8'))
+                msg + "\n" + etree.tostring(err_xml, pretty_print=True).decode("utf8")
+            )
             raise SOAPProtocolError(msg)
         return int(err_code), err_desc
 
@@ -64,11 +71,11 @@ class SOAP(object):
         Sometimes devices return XML with more than one XML declaration in, such as when returning
         their own XML config files. This removes the extra ones and preserves the first one.
         """
-        xml_declaration = ''
-        if xml_str.startswith('<?xml'):
-            xml_declaration, xml_str = xml_str.split('?>', maxsplit=1)
-            xml_declaration += '?>'
-        xml_str = re.sub(r'<\?xml.*?\?>', '', xml_str, flags=re.I)
+        xml_declaration = ""
+        if xml_str.startswith("<?xml"):
+            xml_declaration, xml_str = xml_str.split("?>", maxsplit=1)
+            xml_declaration += "?>"
+        xml_str = re.sub(r"<\?xml.*?\?>", "", xml_str, flags=re.I)
         return xml_declaration + xml_str
 
     def call(self, action_name, arg_in=None, http_auth=None, http_headers=None):
@@ -78,31 +85,27 @@ class SOAP(object):
         if arg_in is None:
             arg_in = {}
 
-        soap_env = '{%s}' % NS_SOAP_ENV
-        m = '{%s}' % self.service_type
+        soap_env = "{%s}" % NS_SOAP_ENV
+        m = "{%s}" % self.service_type
 
-        root = etree.Element(soap_env+'Envelope', nsmap={'SOAP-ENV': NS_SOAP_ENV})
-        root.attrib[soap_env+'encodingStyle'] = ENCODING_STYLE
-        body = etree.SubElement(root, soap_env+'Body')
-        action = etree.SubElement(body, m+action_name, nsmap={'m': self.service_type})
+        root = etree.Element(soap_env + "Envelope", nsmap={"SOAP-ENV": NS_SOAP_ENV})
+        root.attrib[soap_env + "encodingStyle"] = ENCODING_STYLE
+        body = etree.SubElement(root, soap_env + "Body")
+        action = etree.SubElement(body, m + action_name, nsmap={"m": self.service_type})
         for key, value in arg_in.items():
             etree.SubElement(action, key).text = str(value)
         body = etree.tostring(root, encoding=ENCODING, xml_declaration=True)
         headers = {
-            'SOAPAction': '"%s#%s"' % (self.service_type, action_name),
-            'Host': self._host,
-            'Content-Type': 'text/xml',
-            'Content-Length': str(len(body)),
+            "SOAPAction": '"%s#%s"' % (self.service_type, action_name),
+            "Host": self._host,
+            "Content-Type": "text/xml",
+            "Content-Length": str(len(body)),
         }
         headers.update(http_headers or {})
 
         try:
             resp = requests.post(
-                self.url,
-                body,
-                headers=headers,
-                timeout=SOAP_TIMEOUT,
-                auth=http_auth
+                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth
             )
             resp.raise_for_status()
         except requests.exceptions.HTTPError as exc:
@@ -124,13 +127,17 @@ class SOAP(object):
         except ValueError:
             # This can occur when requests returns a `str` (unicode) but there's also an XML
             # declaration, which lxml doesn't like.
-            xml = etree.fromstring(xml_str.encode('utf8'))
+            xml = etree.fromstring(xml_str.encode("utf8"))
 
         response = xml.find(".//{%s}%sResponse" % (self.service_type, action_name))
         if response is None:
-            msg = ('Returned XML did not include an element which matches namespace %r and tag name'
-                   ' \'%sResponse\'.' % (self.service_type, action_name))
-            self._log.debug(msg + '\n' + etree.tostring(xml, pretty_print=True).decode('utf8'))
+            msg = (
+                "Returned XML did not include an element which matches namespace %r and tag name"
+                " '%sResponse'." % (self.service_type, action_name)
+            )
+            self._log.debug(
+                msg + "\n" + etree.tostring(xml, pretty_print=True).decode("utf8")
+            )
             raise SOAPProtocolError(msg)
 
         # Sometimes devices return XML strings as their argument values without escaping them with

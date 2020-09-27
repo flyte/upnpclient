@@ -6,17 +6,17 @@ from dateutil.parser import parse as parse_date
 from requests.compat import urlparse
 
 
-TRUTHY_VALS = {'true', 'yes', '1'}
+TRUTHY_VALS = {"true", "yes", "1"}
 
-DT_RET = {'char', 'string', 'bin.base64', 'bin.hex'}
-DT_INT = {'ui1', 'ui2', 'ui4', 'i1', 'i2', 'i4'}
-DT_DECIMAL = {'r4', 'r8', 'number', 'float', 'fixed.14.4'}
-DT_DATE = {'date'}
-DT_DATETIME = {'dateTime', 'dateTime.tz'}
-DT_TIME = {'time', 'time.tz'}
-DT_BOOL = {'boolean'}
-DT_URI = {'uri'}
-DT_UUID = {'uuid'}
+DT_RET = {"char", "string", "bin.base64", "bin.hex"}
+DT_INT = {"ui1", "ui2", "ui4", "i1", "i2", "i4"}
+DT_DECIMAL = {"r4", "r8", "number", "float", "fixed.14.4"}
+DT_DATE = {"date"}
+DT_DATETIME = {"dateTime", "dateTime.tz"}
+DT_TIME = {"time", "time.tz"}
+DT_BOOL = {"boolean"}
+DT_URI = {"uri"}
+DT_UUID = {"uuid"}
 
 
 def parse_time(val):
@@ -39,7 +39,7 @@ MARSHAL_FUNCTIONS = (
     (DT_TIME, parse_time),
     (DT_BOOL, lambda x: x.lower() in TRUTHY_VALS),
     (DT_URI, urlparse),
-    (DT_UUID, UUID)
+    (DT_UUID, UUID),
 )
 
 
