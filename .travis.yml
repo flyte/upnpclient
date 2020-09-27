@@ -16,11 +16,12 @@ python:
 install:
   - poetry install
 
+script: tox
+
 jobs:
   include:
     - python: 3.8
       stage: test
-      script: tox
 
     - stage: publish
       script: skip
