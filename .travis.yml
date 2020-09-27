@@ -1,43 +1,30 @@
 language: python
 
 stages:
-  - lint
   - test
   - name: publish
     if: tag =~ ^\d+\.\d+\.\d+$
 
+before_install:
+  - pip install poetry tox-travis
+
+python:
+  - "3.6"
+  - "3.7"
+  - "3.8"
+
 install:
-  - pip install tox
+  - poetry install
 
 jobs:
   include:
-    - python: 2.7
-      stage: lint
-      script: tox -e flake8
-
-    - python: 3.6
-      stage: lint
-      script: tox -e flake8
-
-    - python: 2.7
-      stage: test
-      script: tox -e py27
-
-    - python: 3.6
-      stage: test
-      script: tox -e py36
-
-    - python: 3.7
-      stage: test
-      script: tox -e py37
-
     - python: 3.8
       stage: test
-      script: tox -e py38
+      script: tox
 
     - stage: publish
       script: skip
-      python: 2.7
+      python: 3.8
       deploy:
       provider: pypi
       user: flyte
@@ -50,7 +37,7 @@ jobs:
 
     - stage: publish
       script: skip
-      python: 3.6
+      python: 3.8
       deploy:
       provider: pypi
       user: flyte
