@@ -114,7 +114,7 @@ class Device(CallActionMixin):
         resp.raise_for_status()
 
         root = etree.fromstring(resp.content)
-        findtext = partial(root.findtext, namespaces=root.nsmap)
+        findtext = partial(root.findtext, namespaces=root.nsmap, default="")
 
         self.device_type = findtext("device/deviceType").strip()
         self.friendly_name = findtext("device/friendlyName").strip()
@@ -127,7 +127,7 @@ class Device(CallActionMixin):
         self.udn = findtext("device/UDN").strip()
 
         self._url_base = findtext("URLBase").strip()
-        if self._url_base is None or ignore_urlbase:
+        if self._url_base == "" or ignore_urlbase:
             # If no URL Base is given, the UPnP specification says: "the base
             # URL is the URL from which the device description was retrieved"
             self._url_base = self.location
