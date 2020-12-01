@@ -8,6 +8,7 @@ from collections import OrderedDict
 
 import six
 import requests
+import aiohttp
 from requests.compat import urljoin, urlparse
 from dateutil.parser import parse as parse_date
 from lxml import etree
@@ -61,7 +62,9 @@ class CallActionMixin(object):
         action = self.find_action(action_name)
         if action is not None:
             return action(**kwargs)
-        raise InvalidActionException("Action with name %r does not exist." % action_name)
+        raise InvalidActionException(
+            "Action with name %r does not exist." % action_name
+        )
 
 
 class Device(CallActionMixin):
@@ -90,10 +93,12 @@ class Device(CallActionMixin):
     def __init__(
         self,
         location,
+        use_async=False,
         device_name=None,
         ignore_urlbase=False,
         http_auth=None,
         http_headers=None,
+        session=None,
     ):
         """
         Create a new Device instance. `location` is an URL to an XML file
@@ -103,39 +108,36 @@ class Device(CallActionMixin):
         self.device_name = location if device_name is None else device_name
         self.services = []
         self.service_map = {}
+        self._ignore_urlbase = ignore_urlbase
         self._log = _getLogger("Device")
 
         self.http_auth = http_auth
         self.http_headers = http_headers
 
-        resp = requests.get(
-            location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers
-        )
-        resp.raise_for_status()
+        self.device_type = None
+        self.friendly_name = None
+        self.manufacturer = None
+        self.manufacturer_url = None
+        self.model_description = None
+        self.model_name = None
+        self.model_number = None
+        self.serial_number = None
+        self.udn = None
 
-        root = etree.fromstring(resp.content)
-        findtext = partial(root.findtext, namespaces=root.nsmap, default="")
+        self._url_base = None
+        self._root_xml = None
+        self._findtext = None
 
-        self.device_type = findtext("device/deviceType").strip()
-        self.friendly_name = findtext("device/friendlyName").strip()
-        self.manufacturer = findtext("device/manufacturer").strip()
-        self.manufacturer_url = findtext("device/manufacturerURL").strip()
-        self.model_description = findtext("device/modelDescription").strip()
-        self.model_name = findtext("device/modelName").strip()
-        self.model_number = findtext("device/modelNumber").strip()
-        self.serial_number = findtext("device/serialNumber").strip()
-        self.udn = findtext("device/UDN").strip()
+        self._find = None
+        self._findall = None
 
-        self._url_base = findtext("URLBase").strip()
-        if self._url_base == "" or ignore_urlbase:
-            # If no URL Base is given, the UPnP specification says: "the base
-            # URL is the URL from which the device description was retrieved"
-            self._url_base = self.location
-        self._root_xml = root
-        self._findtext = findtext
-        self._find = partial(root.find, namespaces=root.nsmap)
-        self._findall = partial(root.findall, namespaces=root.nsmap)
-        self._read_services()
+        if use_async:
+            self.session = session or aiohttp.ClientSession()
+        else:
+            self.session = None
+            data = self._get_device_description()
+            self._set_device_attributes(data)
+            self._read_services()
 
     def __repr__(self):
         return "<Device '%s'>" % (self.friendly_name)
@@ -168,6 +170,19 @@ class Device(CallActionMixin):
             actions.extend(service.actions)
         return actions
 
+    def _get_device_description(self):
+        """
+        Synchronously retrieve UPnP information.
+        """
+        resp = requests.get(
+            self.location,
+            timeout=HTTP_TIMEOUT,
+            auth=self.http_auth,
+            headers=self.http_headers,
+        )
+        resp.raise_for_status()
+        return resp.content
+
     def _read_services(self):
         """
         Read the control XML file and populate self.services with a list of
@@ -191,6 +206,66 @@ class Device(CallActionMixin):
             )
             self.services.append(svc)
             self.service_map[svc.name] = svc
+
+    async def _async_read_services(self):
+        """
+        Read the control XML file and populate self.services with a list of
+        services in the form of Service class instances.
+        """
+        # The double slash in the XPath is deliberate, as services can be
+        # listed in two places (Section 2.3 of uPNP device architecture v1.1)
+        for node in self._findall("device//serviceList/service"):
+            findtext = partial(node.findtext, namespaces=self._root_xml.nsmap)
+            svc = Service(
+                self,
+                self._url_base,
+                findtext("serviceType").strip(),
+                findtext("serviceId").strip(),
+                findtext("controlURL").strip(),
+                findtext("SCPDURL").strip(),
+                findtext("eventSubURL").strip(),
+                use_async=True,
+                session=self.session,
+            )
+            await svc.async_init()
+            self._log.debug(
+                "%s: Service %r at %r", self.device_name, svc.service_type, svc.scpd_url
+            )
+            self.services.append(svc)
+            self.service_map[svc.name] = svc
+
+    def _set_device_attributes(self, data):
+        root = etree.fromstring(data)
+        findtext = partial(root.findtext, namespaces=root.nsmap, default="")
+
+        self.device_type = findtext("device/deviceType").strip()
+        self.friendly_name = findtext("device/friendlyName").strip()
+        self.manufacturer = findtext("device/manufacturer").strip()
+        self.manufacturer_url = findtext("device/manufacturerURL").strip()
+        self.model_description = findtext("device/modelDescription").strip()
+        self.model_name = findtext("device/modelName").strip()
+        self.model_number = findtext("device/modelNumber").strip()
+        self.serial_number = findtext("device/serialNumber").strip()
+        self.udn = findtext("device/UDN").strip()
+
+        self._url_base = findtext("URLBase").strip()
+        if self._url_base == "" or self._ignore_urlbase:
+            # If no URL Base is given, the UPnP specification says: "the base
+            # URL is the URL from which the device description was retrieved"
+            self._url_base = self.location
+        self._root_xml = root
+        self._findtext = findtext
+        self._find = partial(root.find, namespaces=root.nsmap)
+        self._findall = partial(root.findall, namespaces=root.nsmap)
+
+    async def async_init(self):
+        """
+        Asynchronously retreive UPnP information and set attributes.
+        """
+        async with self.session.get(self.location) as resp:
+            resp.raise_for_status()
+            self._set_device_attributes(await resp.read())
+            await self._async_read_services()
 
     def find_action(self, action_name):
         """Find an action by name.
@@ -221,6 +296,8 @@ class Service(CallActionMixin):
         control_url,
         scpd_url,
         event_sub_url,
+        use_async=False,
+        session=None,
     ):
         self.device = device
         self._url_base = url_base
@@ -229,6 +306,7 @@ class Service(CallActionMixin):
         self._control_url = control_url
         self.scpd_url = scpd_url
         self._event_sub_url = event_sub_url
+        self._full_scpd_url = urljoin(self._url_base, self.scpd_url)
 
         self.actions = []
         self.action_map = {}
@@ -240,22 +318,19 @@ class Service(CallActionMixin):
         self._log.debug("%s controlURL: %s", self.service_id, self._control_url)
         self._log.debug("%s eventSubURL: %s", self.service_id, self._event_sub_url)
 
-        url = urljoin(self._url_base, self.scpd_url)
-        self._log.debug("Reading %s", url)
-        resp = requests.get(
-            url,
-            timeout=HTTP_TIMEOUT,
-            auth=self.device.http_auth,
-            headers=self.device.http_headers,
-        )
-        resp.raise_for_status()
-        self.scpd_xml = etree.fromstring(resp.content)
-        self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
-        self._findtext = partial(self.scpd_xml.findtext, namespaces=self.scpd_xml.nsmap)
-        self._findall = partial(self.scpd_xml.findall, namespaces=self.scpd_xml.nsmap)
+        self._find = None
+        self._findtext = None
+        self._findall = None
 
-        self._read_state_vars()
-        self._read_actions()
+        self._use_async = use_async
+        if use_async:
+            self.session = session or aiohttp.ClientSession()
+        else:
+            self.session = None
+            data = self._get_scpd_data()
+            self._set_find_methods(data)
+            self._read_state_vars()
+            self._read_actions()
 
     def __repr__(self):
         return "<Service service_id='%s'>" % (self.service_id)
@@ -284,9 +359,45 @@ class Service(CallActionMixin):
     @property
     def name(self):
         try:
-            return self.service_id[self.service_id.rindex(":") + 1 :]
+            return self.service_id[self.service_id.rindex(":") + 1:]
         except ValueError:
             return self.service_id
+
+    def _create_renew_request(self, sid, timeout=None):
+        """
+        Returns (url, headers) for service subscription renewal.
+        """
+        url = urljoin(self._url_base, self._event_sub_url)
+        headers = dict(HOST=urlparse(url).netloc, SID=sid)
+        if timeout is not None:
+            headers["TIMEOUT"] = "Second-%s" % timeout
+        return (url, headers)
+
+    def _create_subscribe_request(self, callback_url, timeout=None):
+        """
+        Returns (url, headers) for service subscription.
+        """
+        url = urljoin(self._url_base, self._event_sub_url)
+        headers = dict(
+            HOST=urlparse(url).netloc, CALLBACK="<%s>" % callback_url, NT="upnp:event"
+        )
+        if timeout is not None:
+            headers["TIMEOUT"] = "Second-%s" % timeout
+        return (url, headers)
+
+    def _get_scpd_data(self):
+        """
+        Get the response from the spcd_url endpoint.
+        """
+        self._log.debug("Reading %s", self._full_scpd_url)
+        resp = requests.get(
+            self._full_scpd_url,
+            timeout=HTTP_TIMEOUT,
+            auth=self.device.http_auth,
+            headers=self.device.http_headers,
+        )
+        resp.raise_for_status()
+        return resp.content
 
     def _read_state_vars(self):
         for statevar_node in self._findall("serviceStateTable/stateVariable"):
@@ -307,6 +418,7 @@ class Service(CallActionMixin):
 
     def _read_actions(self):
         action_url = urljoin(self._url_base, self._control_url)
+        action_class = AsyncAction if self._use_async else Action
 
         for action_node in self._findall("actionList/action"):
             name = action_node.findtext("name", namespaces=action_node.nsmap).strip()
@@ -322,11 +434,26 @@ class Service(CallActionMixin):
                     argsdef_in.append((arg_name, arg_statevar))
                 else:
                     argsdef_out.append((arg_name, arg_statevar))
-            action = Action(
-                self, action_url, self.service_type, name, argsdef_in, argsdef_out
+            action = action_class(
+                self,
+                action_url,
+                self.service_type,
+                name,
+                argsdef_in,
+                argsdef_out,
+                session=self.session,
             )
             self.action_map[name] = action
             self.actions.append(action)
+
+    def _set_find_methods(self, data):
+        """
+        Set helper find methods.
+        """
+        self.scpd_xml = etree.fromstring(data)
+        self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
+        self._findtext = partial(self.scpd_xml.findtext, namespaces=self.scpd_xml.nsmap)
+        self._findall = partial(self.scpd_xml.findall, namespaces=self.scpd_xml.nsmap)
 
     @staticmethod
     def validate_subscription_response(resp):
@@ -348,7 +475,7 @@ class Service(CallActionMixin):
                 "Event subscription call returned an invalid timeout value: %r"
                 % timeout_str
             )
-        timeout_str = timeout_str[len("Second-") :]
+        timeout_str = timeout_str[len("Second-"):]
         try:
             timeout = None if timeout_str == "infinite" else int(timeout_str)
         except ValueError:
@@ -372,7 +499,7 @@ class Service(CallActionMixin):
                 "Event subscription call returned an invalid timeout value: %r"
                 % timeout_str
             )
-        timeout_str = timeout_str[len("Second-") :]
+        timeout_str = timeout_str[len("Second-"):]
         try:
             timeout = None if timeout_str == "infinite" else int(timeout_str)
         except ValueError:
@@ -381,6 +508,21 @@ class Service(CallActionMixin):
                 "teger"
             )
         return timeout
+
+    async def async_init(self):
+        """
+        Retrieve the service resources and inialize the instance.
+        """
+        async with self.session.get(
+            self._full_scpd_url,
+            timeout=HTTP_TIMEOUT,
+            auth=self.device.http_auth,
+            headers=self.device.http_headers,
+        ) as resp:
+            self._log.debug("Reading %s", self._full_scpd_url)
+            self._set_find_methods(await resp.read())
+            self._read_state_vars()
+            self._read_actions()
 
     def find_action(self, action_name):
         try:
@@ -392,31 +534,45 @@ class Service(CallActionMixin):
         """
         Set up a subscription to the events offered by this service.
         """
-        url = urljoin(self._url_base, self._event_sub_url)
-        headers = dict(
-            HOST=urlparse(url).netloc, CALLBACK="<%s>" % callback_url, NT="upnp:event"
-        )
-        if timeout is not None:
-            headers["TIMEOUT"] = "Second-%s" % timeout
+        url, headers = self._create_subscribe_request(callback_url, timeout=timeout)
         resp = requests.request(
             "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
         )
         resp.raise_for_status()
         return Service.validate_subscription_response(resp)
 
+    async def async_subscribe(self, callback_url, timeout=None):
+        """
+        Asynchronously set up a subscription to the events offered by this service.
+        """
+        url, headers = self._create_subscribe_request(callback_url, timeout=timeout)
+        async with self.session.request(
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+        ) as resp:
+            resp.raise_for_status()
+            return Service.validate_subscription_response(resp)
+
     def renew_subscription(self, sid, timeout=None):
         """
         Renews a previously configured subscription.
         """
-        url = urljoin(self._url_base, self._event_sub_url)
-        headers = dict(HOST=urlparse(url).netloc, SID=sid)
-        if timeout is not None:
-            headers["TIMEOUT"] = "Second-%s" % timeout
+        url, headers = self._create_renew_request(sid, timeout=timeout)
         resp = requests.request(
             "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
         )
         resp.raise_for_status()
         return Service.validate_subscription_renewal_response(resp)
+
+    async def async_renew_subscription(self, sid, timeout=None):
+        """
+        Asynchronously renews a previously configured subscription.
+        """
+        url, headers = self._create_renew_request(sid, timeout=timeout)
+        async with self.session.request(
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+        ) as resp:
+            resp.raise_for_status()
+            return Service.validate_subscription_renewal_response(resp)
 
     def cancel_subscription(self, sid):
         """
@@ -429,10 +585,28 @@ class Service(CallActionMixin):
         )
         resp.raise_for_status()
 
+    async def async_cancel_subscription(self, sid):
+        """
+        Asynchronously unsubscribes from a previously configured subscription.
+        """
+        url = urljoin(self._url_base, self._event_sub_url)
+        headers = dict(HOST=urlparse(url).netloc, SID=sid)
+        async with self.session.request(
+            "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+        ) as resp:
+            resp.raise_for_status()
+
 
 class Action(object):
     def __init__(
-        self, service, url, service_type, name, argsdef_in=None, argsdef_out=None
+        self,
+        service,
+        url,
+        service_type,
+        name,
+        argsdef_in=None,
+        argsdef_out=None,
+        session=None,
     ):
         if argsdef_in is None:
             argsdef_in = []
@@ -444,12 +618,37 @@ class Action(object):
         self.name = name
         self.argsdef_in = argsdef_in
         self.argsdef_out = argsdef_out
+        self.session = session
         self._log = _getLogger("Action")
 
     def __repr__(self):
         return "<Action '%s'>" % (self.name)
 
     def __call__(self, http_auth=None, http_headers=None, **kwargs):
+        soap_client = self._prepare_request(**kwargs)
+        soap_response = soap_client.call(
+            self.name,
+            http_auth or self.service.device.http_auth,
+            http_headers or self.service.device.http_headers,
+        )
+        self._log.debug("<< %s (%s): %s", self.name, kwargs, soap_response)
+        return self._marshal_values(soap_response)
+
+    def _marshal_values(self, soap_response):
+        """
+        Marshall the response to python data types.
+        """
+        out = {}
+        for name, statevar in self.argsdef_out:
+            _, value = marshal_value(statevar["datatype"], soap_response[name])
+            out[name] = value
+
+        return out
+
+    def _prepare_request(self, session=None, **kwargs):
+        """
+        Validate arguments and return a SOAP instance.
+        """
         arg_reasons = {}
         call_kwargs = OrderedDict()
 
@@ -466,25 +665,9 @@ class Action(object):
         if arg_reasons:
             raise ValidationError(arg_reasons)
 
-        # Make the actual call
+        # Return a SOAP instance
         self._log.debug(">> %s (%s)", self.name, call_kwargs)
-        soap_client = SOAP(self.url, self.service_type)
-
-        soap_response = soap_client.call(
-            self.name,
-            call_kwargs,
-            http_auth or self.service.device.http_auth,
-            http_headers or self.service.device.http_headers,
-        )
-        self._log.debug("<< %s (%s): %s", self.name, call_kwargs, soap_response)
-
-        # Marshall the response to python data types
-        out = {}
-        for name, statevar in self.argsdef_out:
-            _, value = marshal_value(statevar["datatype"], soap_response[name])
-            out[name] = value
-
-        return out
+        return SOAP(self.url, self.service_type, session=session, **call_kwargs)
 
     @staticmethod
     def validate_arg(arg, argdef):
@@ -550,7 +733,9 @@ class Action(object):
                 v = parse_date(arg, default=now)
                 if v.tzinfo is not None:
                     now += v.utcoffset()
-                if not all((v.day == now.day, v.month == now.month, v.year == now.year)):
+                if not all(
+                    (v.day == now.day, v.month == now.month, v.year == now.year)
+                ):
                     reasons.add("%r datatype must not contain a date" % datatype)
                 if datatype == "time" and v.tzinfo is not None:
                     reasons.add(
@@ -588,3 +773,35 @@ class Action(object):
             reasons.add(str(exc))
 
         return not bool(len(reasons)), reasons
+
+
+class AsyncAction(Action):
+    def __init__(
+        self,
+        service,
+        url,
+        service_type,
+        name,
+        argsdef_in=None,
+        argsdef_out=None,
+        session=None,
+    ):
+        super().__init__(
+            service,
+            url,
+            service_type,
+            name,
+            argsdef_in=argsdef_in,
+            argsdef_out=argsdef_out,
+            session=session,
+        )
+
+    async def __call__(self, http_auth=None, http_headers=None, **kwargs):
+        soap_client = self._prepare_request(session=self.session, **kwargs)
+        soap_response = await soap_client.async_call(
+            self.name,
+            http_auth or self.service.device.http_auth,
+            http_headers or self.service.device.http_headers,
+        )
+        self._log.debug("<< %s (%s): %s", self.name, kwargs, soap_response)
+        return self._marshal_values(soap_response)
