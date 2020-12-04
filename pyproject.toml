@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "upnpclient"
-version = "1.0.2"
+version = "1.0.3"
 description = "Python 3 library for accessing uPnP devices."
 authors = ["Ellis Percival <flyte@failcode.co.uk>"]
 license = "MIT"
