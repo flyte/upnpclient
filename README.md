@@ -3,7 +3,7 @@
 uPnPclient
 ============
 
-_uPnP client library for Python 2 and 3._
+_uPnP client library for Python 3._
 
 This library can be used to discover and consume uPnP devices and their services.
 
