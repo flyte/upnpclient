@@ -5,6 +5,7 @@ from lxml import etree
 
 from .util import _getLogger
 
+import aiohttp
 
 SOAP_TIMEOUT = 30
 NS_SOAP_ENV = "http://schemas.xmlsoap.org/soap/envelope/"
@@ -167,19 +168,24 @@ class SOAP(object):
         """
         Construct the XML and make the call to the device. Parse the response values into a dict.
         """
+        if http_auth is not None:
+            http_auth = aiohttp.helpers.BasicAuth(*http_auth)
+
         headers, body = self._create_request(action_name, http_headers=http_headers)
 
         async with self.session.post(
             self.url, data=body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth
         ) as resp:
+            resp_bytes = await resp.read()
             try:
                 resp.raise_for_status()
-            except requests.exceptions.HTTPError as exc:
+                print(resp.status)
+            except aiohttp.client_exceptions.ClientResponseError as exc:
                 # If the body of the error response contains XML then it should be a UPnP error,
                 # otherwise reraise the HTTPError.
                 try:
-                    err_xml = etree.fromstring(await exc.response.read())
+                    err_xml = etree.fromstring(resp_bytes)
                 except etree.XMLSyntaxError:
                     raise exc
                 raise SOAPError(*self._extract_upnperror(err_xml))
-            return self._parse_response(action_name, await resp.read())
+            return self._parse_response(action_name, resp_bytes)
