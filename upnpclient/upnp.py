@@ -133,6 +133,8 @@ class Device(CallActionMixin):
 
         if use_async:
             self.session = session or aiohttp.ClientSession()
+            if self.http_auth:
+                self.http_auth = aiohttp.helpers.BasicAuth(*http_auth)
         else:
             self.session = None
             data = self._get_device_description()
