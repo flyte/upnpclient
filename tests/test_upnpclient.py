@@ -3,6 +3,7 @@ import threading
 import os.path as path
 import os
 import asyncio
+from upnpclient.upnp import UnexpectedResponse
 import aiohttp
 import mock
 import requests
@@ -73,7 +74,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         cls.xml_resource = "%s:%s/upnp/IGD.xml" % (HTTP_LOCALHOST, cls.httpd_port)
 
         cls.loop = asyncio.get_event_loop()
-        cls.loop.run_until_complete(
+        cls.future = cls.loop.run_until_complete(
             setup_web_server(app, host=LOCALHOST, port=ASYNC_SERVER_PORT)
         )
 
@@ -83,7 +84,6 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Shut down the HTTP server and delete the IGD.xml file.
         """
         cls.httpd.shutdown()
-        cls.loop.close()
         try:
             os.unlink("upnp/IGD.xml")
         except OSError:
@@ -127,11 +127,11 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_auth=auth, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask")
         basic_auth_string = f"{auth[0]}:{auth[1]}"
         b64 = b64encode(basic_auth_string.encode("utf-8")).decode()
-        self.assertEqual("Basic %s" % b64, mock_req["headers"]["Authorization"])
+        self.assertEqual("Basic %s" % b64, mock_req.headers["Authorization"])
         await device.session.close()
 
     @mock.patch("requests.post")
@@ -154,11 +154,12 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_auth=dev_auth, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask", http_auth=call_auth)
         basic_auth_string = f"{call_auth[0]}:{call_auth[1]}"
         b64 = b64encode(basic_auth_string.encode("utf-8")).decode()
-        self.assertEqual("Basic %s" % b64, mock_req["headers"]["Authorization"])
+        self.assertEqual("Basic %s" % b64, mock_req.headers["Authorization"])
+        await device.session.close()
 
     @mock.patch("requests.post")
     def test_device_auth_call_override_none(self, mock_post):
@@ -180,11 +181,11 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_auth=auth, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask", http_auth=call_auth)
         basic_auth_string = f"{auth[0]}:{auth[1]}"
         b64 = b64encode(basic_auth_string.encode("utf-8")).decode()
-        self.assertEqual("Basic %s" % b64, mock_req["headers"]["Authorization"])
+        self.assertEqual("Basic %s" % b64, mock_req.headers["Authorization"])
         await device.session.close()
 
     @mock.patch("requests.post")
@@ -207,11 +208,11 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_auth=auth, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask", http_auth=call_auth)
         basic_auth_string = f"{call_auth[0]}:{call_auth[1]}"
         b64 = b64encode(basic_auth_string.encode("utf-8")).decode()
-        self.assertEqual("Basic %s" % b64, mock_req["headers"]["Authorization"])
+        self.assertEqual("Basic %s" % b64, mock_req.headers["Authorization"])
         await device.session.close()
 
     @mock.patch("requests.post")
@@ -231,9 +232,9 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_headers=headers, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask")
-        self.assertEqual(mock_req["headers"]["test"], "device")
+        self.assertEqual(mock_req.headers["test"], "device")
         await device.session.close()
 
     @mock.patch("requests.post")
@@ -255,9 +256,9 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_headers=dev_headers, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask", http_headers=call_headers)
-        self.assertEqual(mock_req["headers"]["test"], "call")
+        self.assertEqual(mock_req.headers["test"], "call")
         await device.session.close()
 
     @mock.patch("requests.post")
@@ -279,9 +280,9 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_headers=dev_headers, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask", http_headers=call_headers)
-        self.assertEqual(mock_req["headers"]["test"], "device")
+        self.assertEqual(mock_req.headers["test"], "device")
         await device.session.close()
 
     @mock.patch("requests.post")
@@ -303,9 +304,9 @@ class TestUPnPClientWithServer(unittest.TestCase):
         device = upnp.Device(self.xml_resource, http_headers=dev_headers, use_async=True)
         await device.async_init()
         device.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         await device("GetSubnetMask", http_headers=call_headers)
-        self.assertEqual(mock_req["headers"]["test"], "call")
+        self.assertEqual(mock_req.headers["test"], "call")
         await device.session.close()
 
     def test_device_props(self):
@@ -340,6 +341,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(server.model_name, "Pannaway")
         self.assertEqual(server.model_number, "RG-210")
         self.assertEqual(server.serial_number, "0320FJ2PZ")
+        await server.session.close()
 
     def test_device_nonexists(self):
         """
@@ -442,7 +444,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         Should be able to call the server with the name of an action.
         """
-        mock_resp["text"] = TEST_DEVICE_AUTH
+        mock_resp.text = TEST_DEVICE_AUTH
         self.async_server.find_action("GetSubnetMask").url = ASYNC_SERVER_ADDR
         ret = await self.async_server("GetSubnetMask")
         self.assertEqual(ret, dict(NewSubnetMask="255.255.255.0"))
@@ -467,7 +469,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         Should be able to call an action with no params and get the results.
         """
-        mock_resp["text"] = TEST_CALLACTION_NOPARAM
+        mock_resp.text = TEST_CALLACTION_NOPARAM
         action = self.async_server.find_action("GetAddressRange")
         action.url = ASYNC_SERVER_ADDR
         self.assertIsInstance(action, upnp.Action)
@@ -495,7 +497,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         Should be able to call an action with parameters and get the results.
         """
-        mock_resp["text"] = TEST_CALLACTION_PARAM
+        mock_resp.text = TEST_CALLACTION_PARAM
         action = self.async_server.find_action("GetGenericPortMappingEntry")
         action.url = ASYNC_SERVER_ADDR
         response = await action(NewPortMappingIndex=0)
@@ -555,7 +557,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         Values should be marshalled into the appropriate Python data types.
         """
-        mock_resp["text"] = TEST_CALLACTION_PARAM_MASHAL_OUT_ASYNC
+        mock_resp.text = TEST_CALLACTION_PARAM_MASHAL_OUT_ASYNC
         action = self.async_server.find_action("GetGenericPortMappingEntry")
         action.url = ASYNC_SERVER_ADDR
         response = await action(NewPortMappingIndex=0)
@@ -609,8 +611,8 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         UPNPErrors should be raised with the correct error code and description.
         """
-        mock_resp["status"] = 500
-        mock_resp["text"] = TEST_CALLACTION_UPNPERROR
+        mock_resp.status = 500
+        mock_resp.text = TEST_CALLACTION_UPNPERROR
         action = self.async_server.find_action("SetDefaultConnectionService")
         action.url = ASYNC_SERVER_ADDR
         try:
@@ -646,19 +648,18 @@ class TestUPnPClientWithServer(unittest.TestCase):
         """
         Should perform a well formed HTTP SUBSCRIBE request.
         """
-        cb_url = "http://127.0.0.1/"
+        cb_url = "http://127.0.0.1:5005"
         self.async_server.layer3f._url_base = ASYNC_SERVER_ADDR
         try:
             await self.async_server.layer3f.async_subscribe(cb_url, timeout=123)
-        except Exception:
+        except UnexpectedResponse:
             pass
-        req = mock_req["request"]
-        self.assertEqual(req.method, "SUBSCRIBE")
-        self.assertEqual(req.get("body"), None)
-        self.assertEqual(req.headers["NT"], "upnp:event")
-        self.assertEqual(req.headers["CALLBACK"], "<%s>" % cb_url)
-        self.assertEqual(req.headers["HOST"], ASYNC_HOST)
-        self.assertEqual(req.headers["TIMEOUT"], "Second-123")
+        self.assertEqual(mock_req.method, "SUBSCRIBE")
+        self.assertEqual(mock_req.body, None)
+        self.assertEqual(mock_req.headers["NT"], "upnp:event")
+        self.assertEqual(mock_req.headers["CALLBACK"], "<%s>" % cb_url)
+        self.assertEqual(mock_req.headers["HOST"], ASYNC_HOST)
+        self.assertEqual(mock_req.headers["TIMEOUT"], "Second-123")
 
     @mock.patch("requests.Session.send", side_effect=EndPrematurelyException)
     def test_renew_subscription(self, mock_send):
@@ -691,13 +692,11 @@ class TestUPnPClientWithServer(unittest.TestCase):
             await self.async_server.layer3f.async_renew_subscription(sid, timeout=123)
         except Exception:
             pass
-
-        req = mock_req["request"]
-        self.assertEqual(req.method, "SUBSCRIBE")
-        self.assertEqual(req.get("body"), None)
-        self.assertEqual(req.headers["HOST"], ASYNC_HOST)
-        self.assertEqual(req.headers["SID"], sid)
-        self.assertEqual(req.headers["TIMEOUT"], "Second-123")
+        self.assertEqual(mock_req.method, "SUBSCRIBE")
+        self.assertEqual(mock_req.body, None)
+        self.assertEqual(mock_req.headers["HOST"], ASYNC_HOST)
+        self.assertEqual(mock_req.headers["SID"], sid)
+        self.assertEqual(mock_req.headers["TIMEOUT"], "Second-123")
 
     @mock.patch("requests.Session.send", side_effect=EndPrematurelyException)
     def test_cancel_subscription(self, mock_send):
@@ -729,10 +728,13 @@ class TestUPnPClientWithServer(unittest.TestCase):
             await self.async_server.layer3f.async_cancel_subscription(sid)
         except Exception:
             pass
-        req = mock_req["request"]
-        self.assertEqual(req.get("body"), None)
-        self.assertEqual(req.headers["HOST"], ASYNC_HOST)
-        self.assertEqual(req.headers["SID"], sid)
+        self.assertEqual(mock_req.method, "UNSUBSCRIBE")
+        self.assertEqual(
+            mock_req.url, "%s/upnp/event/layer3f" % ASYNC_SERVER_ADDR
+        )
+        self.assertEqual(mock_req.body, None)
+        self.assertEqual(mock_req.headers["HOST"], ASYNC_HOST)
+        self.assertEqual(mock_req.headers["SID"], sid)
 
     @mock.patch("requests.Session.send", side_effect=EndPrematurelyException)
     def test_args_order(self, mock_send):
@@ -796,7 +798,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         soap = upnp.soap.SOAP(url, "test", session=self.session)
         with self.assertRaises(Exception):
             await soap.async_call("TestAction")
-        self.assertEqual(ASYNC_HOST, mock_req["headers"]["Host"])
+        self.assertEqual(ASYNC_HOST, mock_req.headers["Host"])
 
     @mock.patch("requests.post", side_effect=EndPrematurelyException)
     def test_call_with_auth(self, mock_post):
@@ -816,14 +818,14 @@ class TestUPnPClientWithServer(unittest.TestCase):
 
     @async_test
     async def test_call_with_auth_async(self):
-        mock_resp["status"] = 400
+        mock_resp.status = 400
         auth = ("myuser", "mypassword")
         soap = upnp.soap.SOAP(ASYNC_SERVER_ADDR, "test", session=self.session)
         with self.assertRaises(aiohttp.client_exceptions.ClientResponseError):
             await soap.async_call("TestAction", http_auth=auth)
         basic_auth_string = f"{auth[0]}:{auth[1]}"
         b64 = b64encode(basic_auth_string.encode("utf-8")).decode()
-        self.assertEqual("Basic %s" % b64, mock_req["headers"]["Authorization"])
+        self.assertEqual("Basic %s" % b64, mock_req.headers["Authorization"])
 
     @mock.patch("requests.post")
     def test_non_xml_error(self, mock_post):
@@ -836,8 +838,8 @@ class TestUPnPClientWithServer(unittest.TestCase):
 
     @async_test
     async def test_non_xml_error_async(self):
-        mock_resp["status"] = 400
-        mock_resp["text"] = "this is not valid xml"
+        mock_resp.status = 400
+        mock_resp.text = "this is not valid xml"
         soap = upnp.soap.SOAP(ASYNC_SERVER_ADDR, "test", session=self.session)
         with self.assertRaises(aiohttp.client_exceptions.ClientResponseError):
             await soap.async_call("TestAction")
@@ -853,8 +855,8 @@ class TestUPnPClientWithServer(unittest.TestCase):
 
     @async_test
     async def test_missing_error_code_element_async(self):
-        mock_resp["status"] = 400
-        mock_resp["text"] = TEST_MISSING_ERROR_CODE_ELEMENT
+        mock_resp.status = 400
+        mock_resp.text = TEST_MISSING_ERROR_CODE_ELEMENT
         soap = upnp.soap.SOAP(ASYNC_SERVER_ADDR, "test", session=self.session)
         with self.assertRaises(upnp.soap.SOAPProtocolError):
             await soap.async_call("TestAction")
@@ -870,8 +872,8 @@ class TestUPnPClientWithServer(unittest.TestCase):
 
     @async_test
     async def test_missing_error_description_element_async(self):
-        mock_resp["status"] = 400
-        mock_resp["text"] = TEST_MISSING_ERROR_DESCRIPTION_ELEMENT
+        mock_resp.status = 400
+        mock_resp.text = TEST_MISSING_ERROR_DESCRIPTION_ELEMENT
         soap = upnp.soap.SOAP(ASYNC_SERVER_ADDR, "test", session=self.session)
         with self.assertRaises(upnp.soap.SOAPProtocolError):
             await soap.async_call("TestAction")
@@ -886,8 +888,8 @@ class TestUPnPClientWithServer(unittest.TestCase):
 
     @async_test
     async def test_missing_response_element_async(self):
-        mock_resp["status"] = 400
-        mock_resp["text"] = TEST_MISSING_RESPONSE_ELEMENT
+        mock_resp.status = 400
+        mock_resp.text = TEST_MISSING_RESPONSE_ELEMENT
         soap = upnp.soap.SOAP(ASYNC_SERVER_ADDR, "test", session=self.session)
         with self.assertRaises(upnp.soap.SOAPProtocolError):
             await soap.async_call("TestAction")

@@ -1,6 +1,51 @@
 from functools import wraps
 
 
+class SimpleMock(dict):
+    """Case insensitive dict to mock HTTP response."""
+    def __init__(self, *args, **kwargs):
+        super(SimpleMock, self).__init__(*args, **kwargs)
+        for k in list(self.keys()):
+            v = super(SimpleMock, self).pop(k)
+            self.__setitem__(k, v)
+
+    def __setitem__(self, key, value):
+        super(SimpleMock, self).__setitem__(str(key).lower(), value)
+
+    def __getitem__(self, key):
+        if key.lower() not in self:
+            return None
+        return super(SimpleMock, self).__getitem__(key.lower())
+
+    def __setattr__(self, key, value):
+        self.__setitem__(key, value)
+
+    def __getattr__(self, key):
+        return self.__getitem__(key)
+
+
+class SimpleMockRequest(SimpleMock):
+    """Case insensitive dict interface for an aiohttp Request object."""
+    def update(self, request):
+        self.clear()
+        attributes = [
+            "method",
+            "host",
+            "path",
+            "path_qs",
+            "query",
+            "body"
+        ]
+        self.headers = SimpleMock(request.headers)
+        self.url = str(request.url)  # match requests interface
+        self.url_object = request.url
+        for attr in attributes:
+            try:
+                self[attr] = getattr(request, attr)
+            except AttributeError:
+                self[attr] = None
+
+
 def async_test(f):
     """
     Decorator to create asyncio context for asyncio methods or functions.
