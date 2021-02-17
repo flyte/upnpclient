@@ -5,6 +5,7 @@ from lxml import etree
 
 from .util import _getLogger
 
+import aiohttp
 
 SOAP_TIMEOUT = 30
 NS_SOAP_ENV = "http://schemas.xmlsoap.org/soap/envelope/"
@@ -26,13 +27,15 @@ class SOAP(object):
     This class defines a simple SOAP client.
     """
 
-    def __init__(self, url, service_type):
+    def __init__(self, url, service_type, session=None, **kwargs):
         self.url = url
         self.service_type = service_type
+        self.session = session
         # FIXME: Use urlparse for this:
         self._host = self.url.split("//", 1)[1].split("/", 1)[
             0
         ]  # Get hostname portion of url
+        self._arg_in = kwargs
         self._log = _getLogger("SOAP")
 
     def _extract_upnperror(self, err_xml):
@@ -78,13 +81,11 @@ class SOAP(object):
         xml_str = re.sub(r"<\?xml.*?\?>", "", xml_str, flags=re.I)
         return xml_declaration + xml_str
 
-    def call(self, action_name, arg_in=None, http_auth=None, http_headers=None):
+    def _create_request(self, action_name, http_headers=None):
         """
-        Construct the XML and make the call to the device. Parse the response values into a dict.
+        Create and return the request headers.
         """
-        if arg_in is None:
-            arg_in = {}
-
+        arg_in = self._arg_in or {}
         soap_env = "{%s}" % NS_SOAP_ENV
         m = "{%s}" % self.service_type
 
@@ -102,22 +103,13 @@ class SOAP(object):
             "Content-Length": str(len(body)),
         }
         headers.update(http_headers or {})
+        return (headers, body)
 
-        try:
-            resp = requests.post(
-                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth
-            )
-            resp.raise_for_status()
-        except requests.exceptions.HTTPError as exc:
-            # If the body of the error response contains XML then it should be a UPnP error,
-            # otherwise reraise the HTTPError.
-            try:
-                err_xml = etree.fromstring(exc.response.content)
-            except etree.XMLSyntaxError:
-                raise exc
-            raise SOAPError(*self._extract_upnperror(err_xml))
-
-        xml_str = resp.content.strip()
+    def _parse_response(self, action_name, data):
+        """
+        Parse XML data into a dict and return.
+        """
+        xml_str = data.strip()
         try:
             xml = etree.fromstring(xml_str)
         except etree.XMLSyntaxError:
@@ -149,5 +141,51 @@ class SOAP(object):
                 ret[arg.tag] = b"\n".join(etree.tostring(x) for x in children)
             else:
                 ret[arg.tag] = arg.text
-
         return ret
+
+    def call(self, action_name, http_auth=None, http_headers=None):
+        """
+        Construct the XML and make the call to the device. Parse the response values into a dict.
+        """
+        headers, body = self._create_request(action_name, http_headers=http_headers)
+
+        try:
+            resp = requests.post(
+                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth
+            )
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            # If the body of the error response contains XML then it should be a UPnP error,
+            # otherwise reraise the HTTPError.
+            try:
+                err_xml = etree.fromstring(exc.response.content)
+            except etree.XMLSyntaxError:
+                raise exc
+            raise SOAPError(*self._extract_upnperror(err_xml))
+        return self._parse_response(action_name, resp.content)
+
+    async def async_call(self, action_name, http_auth=None, http_headers=None):
+        """
+        Construct the XML and make the call to the device. Parse the response values into a dict.
+        """
+        if http_auth is not None:
+            http_auth = aiohttp.helpers.BasicAuth(*http_auth)
+
+        headers, body = self._create_request(action_name, http_headers=http_headers)
+
+        async with self.session.post(
+            self.url, data=body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth
+        ) as resp:
+            resp_bytes = await resp.read()
+            try:
+                resp.raise_for_status()
+                print(resp.status)
+            except aiohttp.client_exceptions.ClientResponseError as exc:
+                # If the body of the error response contains XML then it should be a UPnP error,
+                # otherwise reraise the HTTPError.
+                try:
+                    err_xml = etree.fromstring(resp_bytes)
+                except etree.XMLSyntaxError:
+                    raise exc
+                raise SOAPError(*self._extract_upnperror(err_xml))
+            return self._parse_response(action_name, resp_bytes)
