@@ -94,6 +94,7 @@ class Device(CallActionMixin):
         ignore_urlbase=False,
         http_auth=None,
         http_headers=None,
+        **kwargs
     ):
         """
         Create a new Device instance. `location` is an URL to an XML file
@@ -107,9 +108,14 @@ class Device(CallActionMixin):
 
         self.http_auth = http_auth
         self.http_headers = http_headers
+        
+        
+        self.AllowSelfSignedSSL = False
+        if "AllowSelfSignedSSL" in kwargs:
+            self.AllowSelfSignedSSL = kwargs["AllowSelfSignedSSL"]
 
         resp = requests.get(
-            location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers
+            location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers, verify=not(self.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
 
@@ -136,7 +142,7 @@ class Device(CallActionMixin):
         self._find = partial(root.find, namespaces=root.nsmap)
         self._findall = partial(root.findall, namespaces=root.nsmap)
         self._read_services()
-
+        pass
     def __repr__(self):
         return "<Device '%s'>" % (self.friendly_name)
 
@@ -191,7 +197,7 @@ class Device(CallActionMixin):
             )
             self.services.append(svc)
             self.service_map[svc.name] = svc
-
+        pass
     def find_action(self, action_name):
         """Find an action by name.
         Convenience method that searches through all the services offered by
@@ -247,6 +253,7 @@ class Service(CallActionMixin):
             timeout=HTTP_TIMEOUT,
             auth=self.device.http_auth,
             headers=self.device.http_headers,
+            verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
         self.scpd_xml = etree.fromstring(resp.content)
@@ -399,7 +406,7 @@ class Service(CallActionMixin):
         if timeout is not None:
             headers["TIMEOUT"] = "Second-%s" % timeout
         resp = requests.request(
-            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
         return Service.validate_subscription_response(resp)
@@ -413,7 +420,7 @@ class Service(CallActionMixin):
         if timeout is not None:
             headers["TIMEOUT"] = "Second-%s" % timeout
         resp = requests.request(
-            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
         return Service.validate_subscription_renewal_response(resp)
@@ -425,7 +432,7 @@ class Service(CallActionMixin):
         url = urljoin(self._url_base, self._event_sub_url)
         headers = dict(HOST=urlparse(url).netloc, SID=sid)
         resp = requests.request(
-            "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth
+            "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
 
@@ -468,7 +475,7 @@ class Action(object):
 
         # Make the actual call
         self._log.debug(">> %s (%s)", self.name, call_kwargs)
-        soap_client = SOAP(self.url, self.service_type)
+        soap_client = SOAP(self.url, self.service_type,AllowSelfSignedSSL=self.service.device.AllowSelfSignedSSL)
 
         soap_response = soap_client.call(
             self.name,

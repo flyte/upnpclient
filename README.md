@@ -180,3 +180,26 @@ device.Layer3Forwarding1.GetDefaultConnectionService(
 
 If you've set either at `Device` level, they can be overridden per-call by
 setting them to `None`.
+
+
+#### HTTPS Certificate
+
+UPnP DeviceProtection:1 Standardized secured SSL connection to Devices:
+[UPnP-gw-DeviceProtection-V1-Service](http://upnp.org/specs/gw/UPnP-gw-DeviceProtection-V1-Service.pdf)
+from §1.1.2: `Devices and Control Points will generate their own CA certificates`
+
+To be able to connect to those protected Devices, you must add `AllowSelfSignedSSL` kwargs:
+
+```python
+device = upnpclient.Device(
+    "https://192.168.1.1:5000/rootDesc.xml"
+    AllowSelfSignedSSL=True
+)
+```
+Or
+
+```python
+devices = upnpclient.discover(AllowSelfSignedSSL=True)
+```
+
+Note1: At the moment, upnpclient will not try to access the SSL URL (described in §2.3.1 as `SECURELOCATION.UPNP.ORG` header extentson)

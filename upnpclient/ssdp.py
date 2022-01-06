@@ -109,7 +109,7 @@ def get_addresses_ipv4():
     )
 
 
-def discover(timeout=5):
+def discover(timeout=5,**kwargs):
     """
     Convenience method to discover UPnP devices on the network. Returns a
     list of `upnp.Device` instances. Any invalid servers are silently
@@ -120,7 +120,7 @@ def discover(timeout=5):
         if entry.location in devices:
             continue
         try:
-            devices[entry.location] = Device(entry.location)
+            devices[entry.location] = Device(entry.location,**kwargs)
         except Exception as exc:
             log = _getLogger("ssdp")
             log.error("Error '%s' for %s", exc, entry)
