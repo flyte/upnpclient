@@ -202,7 +202,7 @@ mycert = ("C:\\fooo.crt", "C:\\fooo.key")
 device = upnpclient.Device(
     "https://192.168.1.1:5000/rootDesc.xml",
     AllowSelfSignedSSL = True,
-	cert = mycert,
+    cert = mycert,
 )
 ```
 
@@ -226,7 +226,7 @@ To address that problem, we add a workaround option that let you fix this udp in
 ```python
 device = upnpclient.Device(
     "https://192.168.1.1:5000/rootDesc.xml",
-	SSDPInPort=20000
+    SSDPInPort=20000
 )
 ```
 
