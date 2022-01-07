@@ -110,12 +110,16 @@ class Device(CallActionMixin):
         self.http_headers = http_headers
         
         
+        self.ClientCert = None
+        if "ClientCert" in kwargs:
+            self.ClientCert = kwargs["ClientCert"]
+            
         self.AllowSelfSignedSSL = False
         if "AllowSelfSignedSSL" in kwargs:
             self.AllowSelfSignedSSL = kwargs["AllowSelfSignedSSL"]
-
+        print(self.ClientCert)
         resp = requests.get(
-            location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers, verify=not(self.AllowSelfSignedSSL)
+            location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers,cert=self.ClientCert, verify=not(self.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
 
@@ -253,6 +257,7 @@ class Service(CallActionMixin):
             timeout=HTTP_TIMEOUT,
             auth=self.device.http_auth,
             headers=self.device.http_headers,
+            cert=self.device.ClientCert,
             verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
@@ -406,7 +411,7 @@ class Service(CallActionMixin):
         if timeout is not None:
             headers["TIMEOUT"] = "Second-%s" % timeout
         resp = requests.request(
-            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth, verify=not(self.device.AllowSelfSignedSSL)
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth,cert=self.ClientCert, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
         return Service.validate_subscription_response(resp)
@@ -420,7 +425,7 @@ class Service(CallActionMixin):
         if timeout is not None:
             headers["TIMEOUT"] = "Second-%s" % timeout
         resp = requests.request(
-            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth, verify=not(self.device.AllowSelfSignedSSL)
+            "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth,cert=self.ClientCert, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
         return Service.validate_subscription_renewal_response(resp)
@@ -432,7 +437,7 @@ class Service(CallActionMixin):
         url = urljoin(self._url_base, self._event_sub_url)
         headers = dict(HOST=urlparse(url).netloc, SID=sid)
         resp = requests.request(
-            "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth, verify=not(self.device.AllowSelfSignedSSL)
+            "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth,cert=self.ClientCert, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
 
