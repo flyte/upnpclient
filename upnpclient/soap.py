@@ -35,6 +35,10 @@ class SOAP(object):
         ]  # Get hostname portion of url
         self._log = _getLogger("SOAP")
         
+        self.ClientCert = None
+        if "ClientCert" in kwargs:
+            self.ClientCert = kwargs["ClientCert"]
+            
         self.AllowSelfSignedSSL = False
         if "AllowSelfSignedSSL" in kwargs:
             self.AllowSelfSignedSSL = kwargs["AllowSelfSignedSSL"]
@@ -109,7 +113,7 @@ class SOAP(object):
 
         try:
             resp = requests.post(
-                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth, verify=not(self.AllowSelfSignedSSL)
+                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth,cert=self.ClientCert, verify=not(self.AllowSelfSignedSSL)
             )
             resp.raise_for_status()
         except requests.exceptions.HTTPError as exc:

@@ -33,17 +33,21 @@ def ssdp_request(ssdp_st, ssdp_mx=SSDP_MX):
     ).encode("utf-8")
 
 
-def scan(timeout=5):
+def scan(timeout=5,**kwargs):
     urls = []
     sockets = []
     ssdp_requests = [ssdp_request(ST_ALL), ssdp_request(ST_ROOTDEVICE)]
     stop_wait = datetime.now() + timedelta(seconds=timeout)
+    
+    SSDPInPort = 0
+    if "SSDPInPort" in kwargs:
+        SSDPInPort = kwargs["SSDPInPort"]
 
     for addr in get_addresses_ipv4():
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, SSDP_MX)
-            sock.bind((addr, 0))
+            sock.bind((addr, SSDPInPort))
             sockets.append(sock)
         except socket.error:
             pass
@@ -114,9 +118,9 @@ def discover(timeout=5,**kwargs):
     Convenience method to discover UPnP devices on the network. Returns a
     list of `upnp.Device` instances. Any invalid servers are silently
     ignored.
-    """
+    """    
     devices = {}
-    for entry in scan(timeout):
+    for entry in scan(timeout,**kwargs):
         if entry.location in devices:
             continue
         try:
