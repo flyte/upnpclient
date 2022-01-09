@@ -26,7 +26,8 @@ class SOAP(object):
     This class defines a simple SOAP client.
     """
 
-    def __init__(self, url, service_type,**kwargs):
+    def __init__(self,action, url, service_type,**kwargs):
+        self.action = action
         self.url = url
         self.service_type = service_type
         # FIXME: Use urlparse for this:
@@ -112,7 +113,7 @@ class SOAP(object):
         headers.update(http_headers or {})
 
         try:
-            resp = requests.post(
+            resp = self.action.service.device.session.post(
                 self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth,cert=self.ClientCert, verify=not(self.AllowSelfSignedSSL)
             )
             resp.raise_for_status()

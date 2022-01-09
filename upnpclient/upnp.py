@@ -7,7 +7,7 @@ from functools import partial
 from collections import OrderedDict
 
 import six
-import requests
+from requests import Session
 from requests.compat import urljoin, urlparse
 from dateutil.parser import parse as parse_date
 from lxml import etree
@@ -18,6 +18,83 @@ from .soap import SOAP
 from .marshal import marshal_value
 
 
+
+
+"""
+Subclassing HTTP / requests to get peer_certificate back from lower levels
+"""
+from typing import Optional, Mapping, Any
+from http.client import HTTPSConnection
+from requests.adapters import HTTPAdapter, DEFAULT_POOLBLOCK
+from urllib3.poolmanager import PoolManager,key_fn_by_scheme
+from urllib3.connectionpool import HTTPSConnectionPool,HTTPConnectionPool
+from urllib3.connection import HTTPSConnection,HTTPConnection
+from urllib3.response import HTTPResponse as URLLIB3_HTTPResponse
+
+#force urllib3 to use pyopenssl
+import urllib3.contrib.pyopenssl
+urllib3.contrib.pyopenssl.inject_into_urllib3()  
+
+class HTTPSConnection_withcert(HTTPSConnection):
+    def __init__(self, *args, **kw):
+        self.peer_certificate = None
+        super().__init__(*args, **kw)
+    def connect(self):
+        res = super().connect() 
+        self.peer_certificate = self.sock.connection.get_peer_certificate()
+        return res
+     
+class HTTPResponse_withcert(URLLIB3_HTTPResponse):
+    def __init__(self, *args, **kwargs):
+        self.peer_certificate = None
+        res = super().__init__( *args, **kwargs)
+        self.peer_certificate = self._connection.peer_certificate
+        return res
+       
+class HTTPSConnectionPool_withcert(HTTPSConnectionPool):
+    ConnectionCls   = HTTPSConnection_withcert
+    ResponseCls     = HTTPResponse_withcert
+    
+class PoolManager_withcert(PoolManager): 
+    def __init__(
+        self,
+        num_pools: int = 10,
+        headers: Optional[Mapping[str, str]] = None,
+        **connection_pool_kw: Any,
+    ) -> None:   
+        super().__init__(num_pools,headers,**connection_pool_kw)
+        self.pool_classes_by_scheme = {"http": HTTPConnectionPool, "https": HTTPSConnectionPool_withcert}
+        self.key_fn_by_scheme = key_fn_by_scheme.copy()
+                
+class HTTPAdapter_withcert(HTTPAdapter):
+    _clsHTTPResponse = HTTPResponse_withcert
+    def build_response(self, request, resp):
+        response = super().build_response( request, resp)
+        response.peer_certificate = resp.peer_certificate
+        return response
+    
+    def init_poolmanager(self, connections, maxsize, block=DEFAULT_POOLBLOCK, **pool_kwargs):
+        #do not call super() to not initialize PoolManager twice
+        # save these values for pickling
+        self._pool_connections  = connections
+        self._pool_maxsize      = maxsize
+        self._pool_block        = block
+
+        self.poolmanager        = PoolManager_withcert(num_pools=connections, 
+                                                       maxsize=maxsize,
+                                                       block=block, 
+                                                       strict=True, 
+                                                       **pool_kwargs)   
+   
+class Session_withcert(Session):
+    def __init__(self):
+        super().__init__()
+        self.mount('https://', HTTPAdapter_withcert())
+        
+        
+        
+        
+    
 class UPNPError(Exception):
     """
     Exception class for UPnP errors.
@@ -86,7 +163,6 @@ class Device(CallActionMixin):
     urn:upnp-org:serviceId:wandsllc:pvc_Internet
     urn:upnp-org:serviceId:wanipc:Internet
     """
-
     def __init__(
         self,
         location,
@@ -109,7 +185,6 @@ class Device(CallActionMixin):
         self.http_auth = http_auth
         self.http_headers = http_headers
         
-        
         self.ClientCert = None
         if "ClientCert" in kwargs:
             self.ClientCert = kwargs["ClientCert"]
@@ -118,9 +193,14 @@ class Device(CallActionMixin):
         if "AllowSelfSignedSSL" in kwargs:
             self.AllowSelfSignedSSL = kwargs["AllowSelfSignedSSL"]
         print(self.ClientCert)
-        resp = requests.get(
+            
+        self.session = Session_withcert()
+        resp = self.session.get(
             location, timeout=HTTP_TIMEOUT, auth=self.http_auth, headers=self.http_headers,cert=self.ClientCert, verify=not(self.AllowSelfSignedSSL)
         )
+        
+        print(resp.peer_certificate.get_subject())
+        
         resp.raise_for_status()
 
         root = etree.fromstring(resp.content)
@@ -146,6 +226,7 @@ class Device(CallActionMixin):
         self._find = partial(root.find, namespaces=root.nsmap)
         self._findall = partial(root.findall, namespaces=root.nsmap)
         self._read_services()
+        print(self._url_base)
         pass
     def __repr__(self):
         return "<Device '%s'>" % (self.friendly_name)
@@ -249,10 +330,10 @@ class Service(CallActionMixin):
         self._log.debug("%s SCPDURL: %s", self.service_id, self.scpd_url)
         self._log.debug("%s controlURL: %s", self.service_id, self._control_url)
         self._log.debug("%s eventSubURL: %s", self.service_id, self._event_sub_url)
-
+        print(self._url_base)
         url = urljoin(self._url_base, self.scpd_url)
         self._log.debug("Reading %s", url)
-        resp = requests.get(
+        resp = self.device.session.get(
             url,
             timeout=HTTP_TIMEOUT,
             auth=self.device.http_auth,
@@ -410,7 +491,7 @@ class Service(CallActionMixin):
         )
         if timeout is not None:
             headers["TIMEOUT"] = "Second-%s" % timeout
-        resp = requests.request(
+        resp = self.device.session.post(
             "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth,cert=self.ClientCert, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
@@ -424,7 +505,7 @@ class Service(CallActionMixin):
         headers = dict(HOST=urlparse(url).netloc, SID=sid)
         if timeout is not None:
             headers["TIMEOUT"] = "Second-%s" % timeout
-        resp = requests.request(
+        resp = self.device.session.post(
             "SUBSCRIBE", url, headers=headers, auth=self.device.http_auth,cert=self.ClientCert, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
@@ -436,7 +517,7 @@ class Service(CallActionMixin):
         """
         url = urljoin(self._url_base, self._event_sub_url)
         headers = dict(HOST=urlparse(url).netloc, SID=sid)
-        resp = requests.request(
+        resp = self.device.session.post(
             "UNSUBSCRIBE", url, headers=headers, auth=self.device.http_auth,cert=self.ClientCert, verify=not(self.device.AllowSelfSignedSSL)
         )
         resp.raise_for_status()
@@ -480,7 +561,7 @@ class Action(object):
 
         # Make the actual call
         self._log.debug(">> %s (%s)", self.name, call_kwargs)
-        soap_client = SOAP(self.url, self.service_type,AllowSelfSignedSSL=self.service.device.AllowSelfSignedSSL)
+        soap_client = SOAP(self,self.url, self.service_type,AllowSelfSignedSSL=self.service.device.AllowSelfSignedSSL,ClientCert=self.service.device.ClientCert)
 
         soap_response = soap_client.call(
             self.name,
