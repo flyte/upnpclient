@@ -26,7 +26,8 @@ class SOAP(object):
     This class defines a simple SOAP client.
     """
 
-    def __init__(self, url, service_type):
+    def __init__(self,action, url, service_type,**kwargs):
+        self.action = action
         self.url = url
         self.service_type = service_type
         # FIXME: Use urlparse for this:
@@ -34,6 +35,14 @@ class SOAP(object):
             0
         ]  # Get hostname portion of url
         self._log = _getLogger("SOAP")
+        
+        self.ClientCert = None
+        if "ClientCert" in kwargs:
+            self.ClientCert = kwargs["ClientCert"]
+            
+        self.AllowSelfSignedSSL = False
+        if "AllowSelfSignedSSL" in kwargs:
+            self.AllowSelfSignedSSL = kwargs["AllowSelfSignedSSL"]
 
     def _extract_upnperror(self, err_xml):
         """
@@ -104,8 +113,8 @@ class SOAP(object):
         headers.update(http_headers or {})
 
         try:
-            resp = requests.post(
-                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth
+            resp = self.action.service.device.session.post(
+                self.url, body, headers=headers, timeout=SOAP_TIMEOUT, auth=http_auth,cert=self.ClientCert, verify=not(self.AllowSelfSignedSSL)
             )
             resp.raise_for_status()
         except requests.exceptions.HTTPError as exc:

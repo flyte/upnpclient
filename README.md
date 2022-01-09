@@ -180,3 +180,64 @@ device.Layer3Forwarding1.GetDefaultConnectionService(
 
 If you've set either at `Device` level, they can be overridden per-call by
 setting them to `None`.
+
+
+#### HTTPS Certificate
+
+UPnP DeviceProtection:1 Standardized secured SSL connection to Devices (server):
+[UPnP-gw-DeviceProtection-V1-Service](http://upnp.org/specs/gw/UPnP-gw-DeviceProtection-V1-Service.pdf)
+
+From §1.1.2: `Devices and Control Points will generate their own CA certificates`.
+
+This means two things:
+- your control-point (client) must accept Device (server) certificate, which might not be signed by trusted autorithy - eg self-signed.
+- your control-point (client) must provide a certificate to the Device (server), wich also can be self-signed.
+
+In order to do that, two paramters have been added to kwargs:
+- `AllowSelfSignedSSL`: a boolean allowing upnpclient to connect to not-trusted devices
+- `cert`: to allow user-provided certificate to be used for connection
+
+```python
+mycert = ("C:\\fooo.crt", "C:\\fooo.key")
+device = upnpclient.Device(
+    "https://192.168.1.1:5000/rootDesc.xml",
+    AllowSelfSignedSSL = True,
+    cert = mycert,
+)
+```
+
+Or
+
+```python
+devices = upnpclient.discover(AllowSelfSignedSSL=True,AllowSelfSignedSSL = True,cert = mycert)
+```
+
+Note: At the moment, upnpclient will not try to access the SSL URL in discover mode (described in §2.3.1 as `SECURELOCATION.UPNP.ORG` header extension)
+
+
+#### Custom SSDP inbound port 
+
+SSDP protocol is not well supported by firewalls (like netfilter/conntrack) so if you run this control-point client on a critical device, you may have problems setting filter rules.
+
+Main problem is the defaut SSDP behavior which use random inbound UDP port to receive SSDP responses.
+
+To address that problem, we add a workaround option that let you fix this udp input port:
+
+```python
+device = upnpclient.Device(
+    "https://192.168.1.1:5000/rootDesc.xml",
+    SSDPInPort=20000
+)
+```
+
+Or
+
+```python
+devices = upnpclient.discover(AllowSelfSignedSSL=True,SSDPInPort=30000)
+```
+
+Then you can allow this path in your firewall configuration.
+
+Example for iptables:
+
+```iptables -A INPUT [-i <<control-point input interface>>] -d <<control-point ip address>>  -p udp --dport <<control-point fixed ssdp input port>> -j ACCEPT```
