@@ -1,0 +1,24 @@
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <URLBase>http://127.0.0.1:{port}</URLBase>
+  <device>
+    <deviceType>urn:roku-com:device:player:1-0</deviceType>
+    <friendlyName>Roku Streaming Stick</friendlyName>
+    <manufacturer>Roku</manufacturer>
+    <manufacturerURL>http://www.roku.com</manufacturerURL>
+    <modelName>Streaming Stick</modelName>
+    <UDN>uuid:roku-streaming-stick</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:roku-com:service:ecp:1</serviceType>
+        <serviceId>urn:roku-com:serviceId:ecp</serviceId>
+        <controlURL>/roku/control</controlURL>
+        <eventSubURL>/roku/event</eventSubURL>
+        <SCPDURL>/roku/missing_scpd.xml</SCPDURL>
+      </service>
+    </serviceList>
+  </device>
+</root>

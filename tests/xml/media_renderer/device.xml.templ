@@ -1,0 +1,42 @@
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <URLBase>http://127.0.0.1:{port}</URLBase>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>Test Media Renderer</friendlyName>
+    <manufacturer>Test Manufacturer</manufacturer>
+    <manufacturerURL>http://www.example.com</manufacturerURL>
+    <modelDescription>Test DLNA Media Renderer</modelDescription>
+    <modelName>TestRenderer</modelName>
+    <modelNumber>1.0</modelNumber>
+    <modelURL>http://www.example.com</modelURL>
+    <serialNumber>123456789</serialNumber>
+    <UDN>uuid:test-media-renderer-001</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+        <controlURL>/media_renderer/control/RenderingControl</controlURL>
+        <eventSubURL>/media_renderer/event/RenderingControl</eventSubURL>
+        <SCPDURL>/media_renderer/RenderingControl.xml</SCPDURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <controlURL>/media_renderer/control/ConnectionManager</controlURL>
+        <eventSubURL>/media_renderer/event/ConnectionManager</eventSubURL>
+        <SCPDURL>/media_renderer/ConnectionManager.xml</SCPDURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <controlURL>/media_renderer/control/AVTransport</controlURL>
+        <eventSubURL>/media_renderer/event/AVTransport</eventSubURL>
+        <SCPDURL>/media_renderer/AVTransport.xml</SCPDURL>
+      </service>
+    </serviceList>
+  </device>
+</root>
