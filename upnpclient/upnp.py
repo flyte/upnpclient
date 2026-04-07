@@ -14,9 +14,10 @@ from lxml import etree
 from .util import _getLogger
 from .const import HTTP_TIMEOUT
 
-XML_PARSER = etree.XMLParser(recover=True)
 from .soap import SOAP
 from .marshal import marshal_value
+
+XML_PARSER = etree.XMLParser(recover=True)
 
 
 class UPNPError(Exception):
