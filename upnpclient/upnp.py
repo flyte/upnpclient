@@ -548,7 +548,7 @@ class Action(object):
                     reasons.add("'dateTime' datatype must not contain a timezone")
 
             elif datatype in ("time", "time.tz"):
-                now = datetime.datetime.now(datetime.UTC)
+                now = datetime.datetime.now(datetime.timezone.utc)
                 v = parse_date(arg, default=now)
                 if v.tzinfo is not None:
                     now += v.utcoffset()
