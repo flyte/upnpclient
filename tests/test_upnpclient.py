@@ -15,20 +15,9 @@ from lxml import etree
 import upnpclient as upnp
 
 
-try:
-    import http.server as httpserver
-except ImportError:
-    import SimpleHTTPServer as httpserver
-
-try:
-    import socketserver as sockserver
-except ImportError:
-    import SocketServer as sockserver
-
-try:
-    from urllib.parse import ParseResult
-except ImportError:
-    from urlparse import ParseResult
+import http.server as httpserver
+import socketserver as sockserver
+from urllib.parse import ParseResult
 
 
 class EndPrematurelyException(Exception):

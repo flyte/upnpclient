@@ -51,6 +51,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["upnpclient"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["doc/", "gui/", "examples/"]
+
 [tool.coverage.run]
 source = ["upnpclient"]
 
