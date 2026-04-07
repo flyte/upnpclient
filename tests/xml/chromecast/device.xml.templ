@@ -1,0 +1,24 @@
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <URLBase>http://127.0.0.1:{port}</URLBase>
+  <device>
+    <deviceType>urn:dial-multiscreen-org:device:dial:1</deviceType>
+    <friendlyName>Living Room Chromecast</friendlyName>
+    <manufacturer>Google Inc.</manufacturer>
+    <manufacturerURL>http://www.google.com</manufacturerURL>
+    <modelName>Eureka Dongle</modelName>
+    <UDN>uuid:chromecast-living-room</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:dial-multiscreen-org:service:dial:1</serviceType>
+        <serviceId>urn:dial-multiscreen-org:serviceId:dial</serviceId>
+        <controlURL>/chromecast/control</controlURL>
+        <eventSubURL>/chromecast/event</eventSubURL>
+        <SCPDURL>/chromecast/nonexistent_scpd.xml</SCPDURL>
+      </service>
+    </serviceList>
+  </device>
+</root>
