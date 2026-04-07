@@ -25,68 +25,69 @@ pip install upnpclient
 
 ### Usage
 
-Typical usage:
+#### Discovering devices
 
 ```python
-In [1]: import upnpclient
-
-In [2]: devices = upnpclient.discover()
-
-In [3]: devices
-Out[3]: 
+>>> import upnpclient
+>>> devices = upnpclient.discover()
+>>> devices
 [<Device 'OpenWRT router'>,
  <Device 'Harmony Hub'>,
  <Device 'walternate: root'>]
+```
 
-In [4]: d = devices[0]
+If you already know the URL for a device's description XML, you can create it directly:
 
-In [5]: d.WANIPConn1.GetStatusInfo()
-Out[5]: 
+```python
+>>> d = upnpclient.Device("http://192.168.1.1:5000/rootDesc.xml")
+```
+
+#### Listing services and actions
+
+Each device exposes different services depending on what it is. Check what's available:
+
+```python
+>>> d.services
+[<Service service_id='urn:upnp-org:serviceId:Layer3Forwarding1'>,
+ <Service service_id='urn:upnp-org:serviceId:WANCommonIFC1'>,
+ <Service service_id='urn:upnp-org:serviceId:WANIPConn1'>]
+```
+
+Services are accessed by the last part of their `service_id`. For example, `urn:upnp-org:serviceId:WANIPConn1` becomes `d.WANIPConn1`:
+
+```python
+>>> d.WANIPConn1.actions
+[<Action 'GetStatusInfo'>,
+ <Action 'GetNATRSIPStatus'>,
+ <Action 'GetExternalIPAddress'>,
+ <Action 'AddPortMapping'>,
+ ...]
+```
+
+If the service name isn't a valid Python attribute, use dictionary-style access:
+
+```python
+>>> d["WANIPConn1"]["GetStatusInfo"]()
+```
+
+#### Calling actions
+
+```python
+>>> d.WANIPConn1.GetStatusInfo()
 {'NewConnectionStatus': 'Connected',
  'NewLastConnectionError': 'ERROR_NONE',
  'NewUptime': 14851479}
 
-In [6]: d.WANIPConn1.GetNATRSIPStatus()
-Out[6]: {'NewNATEnabled': True, 'NewRSIPAvailable': False}
-
-In [7]: d.WANIPConn1.GetExternalIPAddress()
-Out[7]: {'NewExternalIPAddress': '123.123.123.123'}
+>>> d.WANIPConn1.GetExternalIPAddress()
+{'NewExternalIPAddress': '123.123.123.123'}
 ```
 
-If you know the URL for the device description XML, you can access it directly.
+#### Inspecting action arguments
+
+To see what arguments an action expects:
 
 ```python
-In [1]: import upnpclient
-
-In [2]: d = upnpclient.Device("http://192.168.1.1:5000/rootDesc.xml")
-
-In [3]: d.services
-Out[3]: 
-[<Service service_id='urn:upnp-org:serviceId:Layer3Forwarding1'>,
- <Service service_id='urn:upnp-org:serviceId:WANCommonIFC1'>,
- <Service service_id='urn:upnp-org:serviceId:WANIPConn1'>]
-
-In [4]: d.Layer3Forwarding1.actions
-Out[4]: 
-[<Action 'SetDefaultConnectionService'>,
- <Action 'GetDefaultConnectionService'>]
-
-In [5]: d.Layer3Forwarding1.GetDefaultConnectionService()
-Out[5]: {'NewDefaultConnectionService': 'uuid:46cb370a-d7f2-490f-ac01-fb0db6c8b22b:WANConnectionDevice:1,urn:upnp-org:serviceId:WANIPConn1'}
-```
-
-Sometimes the service or action name isn't a valid property name. In which case, service and actions can be accessed other ways:
-
-```python
-In [1]: d["Layer3Forwarding1"]["GetDefaultConnectionService"]()
-Out[1]: {'NewDefaultConnectionService': 'uuid:46cb370a-d7f2-490f-ac01-fb0db6c8b22b:WANConnectionDevice:1,urn:upnp-org:serviceId:WANIPConn1'}
-```
-
-To view the arguments required to call a given action:
-
-```python
-In [1]: d.WANIPConn1.AddPortMapping.argsdef_in
-Out[1]: 
+>>> d.WANIPConn1.AddPortMapping.argsdef_in
 [('NewRemoteHost',
   {'allowed_values': set(), 'datatype': 'string', 'name': 'RemoteHost'}),
  ('NewExternalPort',
@@ -113,56 +114,41 @@ Out[1]:
    'name': 'PortMappingLeaseDuration'})]
 ```
 
-and then to call the action using those arguments:
+Then call it with those arguments:
 
 ```python
-In [1]: d.WANIPConn1.AddPortMapping(
-   ...:     NewRemoteHost='0.0.0.0',
-   ...:     NewExternalPort=12345,
-   ...:     NewProtocol='TCP',
-   ...:     NewInternalPort=12345,
-   ...:     NewInternalClient='192.168.1.10',
-   ...:     NewEnabled='1',
-   ...:     NewPortMappingDescription='Testing',
-   ...:     NewLeaseDuration=10000)
-Out[1]: {}
+>>> d.WANIPConn1.AddPortMapping(
+...     NewRemoteHost='0.0.0.0',
+...     NewExternalPort=12345,
+...     NewProtocol='TCP',
+...     NewInternalPort=12345,
+...     NewInternalClient='192.168.1.10',
+...     NewEnabled='1',
+...     NewPortMappingDescription='Testing',
+...     NewLeaseDuration=10000)
+{}
 ```
 
-Similarly, the arguments you can expect to receive in response are listed:
+Similarly, `argsdef_out` shows what an action returns:
 
 ```python
-In [1]: d.WANIPConn1.GetGenericPortMappingEntry.argsdef_out
-Out[1]: 
-[('NewRemoteHost',
-  {'allowed_values': set(), 'datatype': 'string', 'name': 'RemoteHost'}),
- ('NewExternalPort',
-  {'allowed_values': set(), 'datatype': 'ui2', 'name': 'ExternalPort'}),
- ('NewProtocol',
-  {'allowed_values': {'TCP', 'UDP'},
+>>> d.WANIPConn1.GetStatusInfo.argsdef_out
+[('NewConnectionStatus',
+  {'allowed_values': {'Connected', 'Disconnected', 'Connecting'},
    'datatype': 'string',
-   'name': 'PortMappingProtocol'}),
- ('NewInternalPort',
-  {'allowed_values': set(), 'datatype': 'ui2', 'name': 'InternalPort'}),
- ('NewInternalClient',
-  {'allowed_values': set(), 'datatype': 'string', 'name': 'InternalClient'}),
- ('NewEnabled',
-  {'allowed_values': set(),
-   'datatype': 'boolean',
-   'name': 'PortMappingEnabled'}),
- ('NewPortMappingDescription',
+   'name': 'ConnectionStatus'}),
+ ('NewLastConnectionError',
   {'allowed_values': set(),
    'datatype': 'string',
-   'name': 'PortMappingDescription'}),
- ('NewLeaseDuration',
-  {'allowed_values': set(),
-   'datatype': 'ui4',
-   'name': 'PortMappingLeaseDuration'})]
+   'name': 'LastConnectionError'}),
+ ('NewUptime',
+  {'allowed_values': set(), 'datatype': 'ui4', 'name': 'Uptime'})]
 ```
 
 #### HTTP Auth/Headers
 
 You may pass a
-[requests compatible](http://docs.python-requests.org/en/master/user/authentication/)
+[requests compatible](https://docs.python-requests.org/en/latest/user/authentication/)
 authentication object and/or a dictionary containing headers to use on the HTTP
 calls to your uPnP device.
 
@@ -171,9 +157,9 @@ call:
 
 ```python
 device = upnpclient.Device(
-    "http://192.168.1.1:5000/rootDesc.xml"
+    "http://192.168.1.1:5000/rootDesc.xml",
     http_auth=('myusername', 'mypassword'),
-    http_headers={'Some-Required-Header': 'somevalue'}
+    http_headers={'Some-Required-Header': 'somevalue'},
 )
 ```
 
@@ -182,7 +168,7 @@ Or on a per-call basis:
 ```python
 device.Layer3Forwarding1.GetDefaultConnectionService(
     http_auth=('myusername', 'mypassword'),
-    http_headers={'Some-Required-Header': 'somevalue'}
+    http_headers={'Some-Required-Header': 'somevalue'},
 )
 ```
 
