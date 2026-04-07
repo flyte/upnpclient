@@ -1,4 +1,8 @@
 [![CI](https://github.com/flyte/upnpclient/actions/workflows/ci.yml/badge.svg)](https://github.com/flyte/upnpclient/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/upnpclient)](https://pypi.org/project/upnpclient/)
+[![Python](https://img.shields.io/pypi/pyversions/upnpclient)](https://pypi.org/project/upnpclient/)
+[![License](https://img.shields.io/pypi/l/upnpclient)](https://github.com/flyte/upnpclient/blob/develop/LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/upnpclient)](https://pypi.org/project/upnpclient/)
 
 uPnPclient
 ============
