@@ -57,6 +57,10 @@ class TestUPnPClientWithServer(unittest.TestCase):
             with open("upnp/IGD.xml.templ") as in_f:
                 out_f.write(in_f.read().format(port=cls.httpd_port))
 
+        with open("upnp/IGD_malformed_ns.xml", "w") as out_f:
+            with open("upnp/IGD_malformed_ns.xml.templ") as in_f:
+                out_f.write(in_f.read().format(port=cls.httpd_port))
+
     @classmethod
     def tearDownClass(cls):
         """
@@ -65,6 +69,10 @@ class TestUPnPClientWithServer(unittest.TestCase):
         cls.httpd.shutdown()
         try:
             os.unlink("upnp/IGD.xml")
+        except OSError:
+            pass
+        try:
+            os.unlink("upnp/IGD_malformed_ns.xml")
         except OSError:
             pass
 
@@ -263,6 +271,20 @@ class TestUPnPClientWithServer(unittest.TestCase):
         self.assertEqual(server.model_name, "Pannaway")
         self.assertEqual(server.model_number, "RG-210")
         self.assertEqual(server.serial_number, "0320FJ2PZ")
+
+    def test_device_malformed_namespace(self):
+        """
+        Device with malformed XML namespace (leading space in URN) should
+        still be parseable. Regression test for GitHub issues #27 and #43.
+        """
+        device = upnp.Device(
+            "http://127.0.0.1:%s/upnp/IGD_malformed_ns.xml" % self.httpd_port
+        )
+        self.assertEqual(
+            device.device_type, "urn:schemas-upnp-org:device:MediaRenderer:1"
+        )
+        self.assertEqual(device.friendly_name, "Marantz SR5008")
+        self.assertEqual(device.manufacturer, "Marantz")
 
     def test_device_nonexists(self):
         """

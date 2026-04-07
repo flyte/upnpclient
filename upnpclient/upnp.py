@@ -13,6 +13,8 @@ from lxml import etree
 
 from .util import _getLogger
 from .const import HTTP_TIMEOUT
+
+XML_PARSER = etree.XMLParser(recover=True)
 from .soap import SOAP
 from .marshal import marshal_value
 
@@ -112,7 +114,7 @@ class Device(CallActionMixin):
         )
         resp.raise_for_status()
 
-        root = etree.fromstring(resp.content)
+        root = etree.fromstring(resp.content, parser=XML_PARSER)
         findtext = partial(root.findtext, namespaces=root.nsmap, default="")
 
         self.device_type = findtext("device/deviceType").strip()
@@ -248,7 +250,7 @@ class Service(CallActionMixin):
             headers=self.device.http_headers,
         )
         resp.raise_for_status()
-        self.scpd_xml = etree.fromstring(resp.content)
+        self.scpd_xml = etree.fromstring(resp.content, parser=XML_PARSER)
         self._find = partial(self.scpd_xml.find, namespaces=self.scpd_xml.nsmap)
         self._findtext = partial(self.scpd_xml.findtext, namespaces=self.scpd_xml.nsmap)
         self._findall = partial(self.scpd_xml.findall, namespaces=self.scpd_xml.nsmap)
