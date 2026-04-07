@@ -7,7 +7,7 @@ import base64
 import binascii
 from uuid import UUID
 
-import mock
+from unittest import mock
 import requests
 from requests.compat import basestring
 from lxml import etree
