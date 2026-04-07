@@ -9,7 +9,6 @@ from uuid import UUID
 
 from unittest import mock
 import requests
-from requests.compat import basestring
 from lxml import etree
 
 import upnpclient as upnp
@@ -433,7 +432,7 @@ class TestUPnPClientWithServer(unittest.TestCase):
         action = self.server.find_action("GetGenericPortMappingEntry")
         response = action(NewPortMappingIndex=0)
 
-        self.assertIsInstance(response["NewInternalClient"], basestring)
+        self.assertIsInstance(response["NewInternalClient"], str)
         self.assertIsInstance(response["NewExternalPort"], int)
         self.assertIsInstance(response["NewEnabled"], bool)
 
