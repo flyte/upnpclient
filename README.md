@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/flyte/upnpclient.svg?branch=develop)](https://travis-ci.org/flyte/upnpclient)
+[![CI](https://github.com/flyte/upnpclient/actions/workflows/ci.yml/badge.svg)](https://github.com/flyte/upnpclient/actions/workflows/ci.yml)
 
 uPnPclient
 ============
@@ -8,6 +8,10 @@ _uPnP client library for Python 3._
 This library can be used to discover and consume uPnP devices and their services.
 
 It's originally based on [Ferry Boender's work](https://github.com/fboender/pyupnpclient) and his blog post entitled [Exploring UPnP with Python](https://www.electricmonk.nl/log/2016/07/05/exploring-upnp-with-python/).
+
+### Requirements
+
+Python 3.9+
 
 ### Installation
 
