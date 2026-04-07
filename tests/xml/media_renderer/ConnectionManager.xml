@@ -1,0 +1,47 @@
+<scpd xmlns="urn:schemas-upnp-org:service-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <actionList>
+    <action>
+      <name>GetProtocolInfo</name>
+      <argumentList>
+        <argument>
+          <name>Source</name>
+          <direction>out</direction>
+          <relatedStateVariable>SourceProtocolInfo</relatedStateVariable>
+        </argument>
+        <argument>
+          <name>Sink</name>
+          <direction>out</direction>
+          <relatedStateVariable>SinkProtocolInfo</relatedStateVariable>
+        </argument>
+      </argumentList>
+    </action>
+    <action>
+      <name>GetCurrentConnectionIDs</name>
+      <argumentList>
+        <argument>
+          <name>ConnectionIDs</name>
+          <direction>out</direction>
+          <relatedStateVariable>CurrentConnectionIDs</relatedStateVariable>
+        </argument>
+      </argumentList>
+    </action>
+  </actionList>
+  <serviceStateTable>
+    <stateVariable sendEvents="no">
+      <name>SourceProtocolInfo</name>
+      <dataType>string</dataType>
+    </stateVariable>
+    <stateVariable sendEvents="no">
+      <name>SinkProtocolInfo</name>
+      <dataType>string</dataType>
+    </stateVariable>
+    <stateVariable sendEvents="no">
+      <name>CurrentConnectionIDs</name>
+      <dataType>string</dataType>
+    </stateVariable>
+  </serviceStateTable>
+</scpd>
