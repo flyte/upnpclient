@@ -7,7 +7,7 @@ from functools import partial
 from collections import OrderedDict
 
 import requests
-from requests.compat import urljoin, urlparse
+from urllib.parse import urljoin, urlparse
 from dateutil.parser import parse as parse_date
 from lxml import etree
 

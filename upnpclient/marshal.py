@@ -3,7 +3,7 @@ from uuid import UUID
 import datetime
 
 from dateutil.parser import parse as parse_date
-from requests.compat import urlparse
+from urllib.parse import urlparse
 
 
 TRUTHY_VALS = {"true", "yes", "1"}
