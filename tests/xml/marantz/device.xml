@@ -1,0 +1,41 @@
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:ms=" urn:microsoft-com:wmc-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>Marantz SR5008</friendlyName>
+    <manufacturer>Marantz</manufacturer>
+    <manufacturerURL>http://www.marantz.com</manufacturerURL>
+    <modelDescription>Marantz AV Surround Receiver</modelDescription>
+    <modelName>Marantz SR5008</modelName>
+    <modelNumber>SR5008</modelNumber>
+    <modelURL>http://www.marantz.com</modelURL>
+    <serialNumber>M1A2B3C4D5</serialNumber>
+    <UDN>uuid:5f9ec1b3-ff59-19bb-8530-0005cd339473</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+        <controlURL>/upnp/control/RenderingControl</controlURL>
+        <eventSubURL>/upnp/event/RenderingControl</eventSubURL>
+        <SCPDURL>/marantz/RenderingControl.xml</SCPDURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <controlURL>/upnp/control/ConnectionManager</controlURL>
+        <eventSubURL>/upnp/event/ConnectionManager</eventSubURL>
+        <SCPDURL>/marantz/ConnectionManager.xml</SCPDURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <controlURL>/upnp/control/AVTransport</controlURL>
+        <eventSubURL>/upnp/event/AVTransport</eventSubURL>
+        <SCPDURL>/marantz/AVTransport.xml</SCPDURL>
+      </service>
+    </serviceList>
+  </device>
+</root>
