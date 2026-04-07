@@ -1,6 +1,6 @@
 [project]
 name = "upnpclient"
-version = "1.0.3"
+version = "2.0.0"
 description = "Python 3 library for accessing uPnP devices."
 readme = "README.md"
 license = "MIT"
