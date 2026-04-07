@@ -6,7 +6,6 @@ from binascii import unhexlify
 from functools import partial
 from collections import OrderedDict
 
-import six
 import requests
 from requests.compat import urljoin, urlparse
 from dateutil.parser import parse as parse_date
@@ -527,11 +526,11 @@ class Action(object):
                     )
 
             elif datatype == "char":
-                v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
+                v = arg.decode("utf8") if isinstance(arg, bytes) else arg
                 assert len(v) == 1
 
             elif datatype == "string":
-                v = arg.decode("utf8") if six.PY2 or isinstance(arg, bytes) else arg
+                v = arg.decode("utf8") if isinstance(arg, bytes) else arg
                 if argdef["allowed_values"] and v not in argdef["allowed_values"]:
                     reasons.add("Value %r not in allowed values list" % arg)
 
