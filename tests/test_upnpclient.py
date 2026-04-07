@@ -30,23 +30,23 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Set up an HTTP server to serve the XML files. Set the correct port in
         the IGD.xml URLBase element.
         """
-        # Have to chdir here because the py2 SimpleHTTPServer doesn't allow us
-        # to change its working directory like the py3 one does.
-        os.chdir(path.join(path.dirname(path.realpath(__file__)), "xml"))
-        cls.httpd = sockserver.TCPServer(
-            ("127.0.0.1", 0), httpserver.SimpleHTTPRequestHandler
+        cls.xml_dir = path.join(path.dirname(path.realpath(__file__)), "xml")
+        handler = lambda *args, **kwargs: httpserver.SimpleHTTPRequestHandler(
+            *args, directory=cls.xml_dir, **kwargs
         )
+        cls.httpd = sockserver.TCPServer(("127.0.0.1", 0), handler)
         cls.httpd_thread = threading.Thread(target=cls.httpd.serve_forever)
         cls.httpd_thread.daemon = True
         cls.httpd_thread.start()
         cls.httpd_port = cls.httpd.server_address[1]
 
-        with open("upnp/IGD.xml", "w") as out_f:
-            with open("upnp/IGD.xml.templ") as in_f:
+        upnp_dir = path.join(cls.xml_dir, "upnp")
+        with open(path.join(upnp_dir, "IGD.xml"), "w") as out_f:
+            with open(path.join(upnp_dir, "IGD.xml.templ")) as in_f:
                 out_f.write(in_f.read().format(port=cls.httpd_port))
 
-        with open("upnp/IGD_malformed_ns.xml", "w") as out_f:
-            with open("upnp/IGD_malformed_ns.xml.templ") as in_f:
+        with open(path.join(upnp_dir, "IGD_malformed_ns.xml"), "w") as out_f:
+            with open(path.join(upnp_dir, "IGD_malformed_ns.xml.templ")) as in_f:
                 out_f.write(in_f.read().format(port=cls.httpd_port))
 
     @classmethod
@@ -55,14 +55,12 @@ class TestUPnPClientWithServer(unittest.TestCase):
         Shut down the HTTP server and delete the IGD.xml file.
         """
         cls.httpd.shutdown()
-        try:
-            os.unlink("upnp/IGD.xml")
-        except OSError:
-            pass
-        try:
-            os.unlink("upnp/IGD_malformed_ns.xml")
-        except OSError:
-            pass
+        upnp_dir = path.join(cls.xml_dir, "upnp")
+        for f in ("IGD.xml", "IGD_malformed_ns.xml"):
+            try:
+                os.unlink(path.join(upnp_dir, f))
+            except OSError:
+                pass
 
     def setUp(self):
         self.server = upnp.Device("http://127.0.0.1:%s/upnp/IGD.xml" % self.httpd_port)
