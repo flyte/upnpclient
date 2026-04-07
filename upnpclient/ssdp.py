@@ -123,5 +123,5 @@ def discover(timeout=5):
             devices[entry.location] = Device(entry.location)
         except Exception as exc:
             log = _getLogger("ssdp")
-            log.error("Error '%s' for %s", exc, entry)
+            log.debug("Error '%s' for %s", exc, entry)
     return list(devices.values())
